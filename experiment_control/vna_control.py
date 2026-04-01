@@ -217,6 +217,104 @@ class VNA:
 
         return freqs, s11_complex
 
+    def sweep_s11_s21(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Trigger a single sweep and return S11 and S21.
+
+        Both measurements must already exist on the VNA channel, or this
+        method will create them. Use configure() first to set frequencies,
+        power, and IFBW.
+
+        Returns
+        -------
+        freqs : np.ndarray
+            Frequency array in Hz, shape (num_points,).
+        s11_complex : np.ndarray
+            Complex S11 (linear), shape (num_points,).
+        s21_complex : np.ndarray
+            Complex S21 (linear), shape (num_points,).
+        """
+        if self._num_points is None:
+            raise RuntimeError("Call configure() before sweep_s11_s21().")
+
+        # Ensure both S11 and S21 measurements exist on channel 1
+        catalog = self._inst.query('CALC1:PAR:CAT:EXT?').strip().strip('"')
+        existing = {}
+        if catalog and catalog != 'NO CATALOG':
+            tokens = [t.strip() for t in catalog.split(',')]
+            # catalog is "name,param,name,param,..."
+            for i in range(0, len(tokens) - 1, 2):
+                existing[tokens[i + 1].upper()] = tokens[i]
+
+        if 'S11' not in existing:
+            self._inst.write("CALC1:PAR:DEF:EXT 'S11_MEAS','S11'")
+            self._inst.write("DISP:WIND1:TRAC1:FEED 'S11_MEAS'")
+            existing['S11'] = 'S11_MEAS'
+        if 'S21' not in existing:
+            self._inst.write("CALC1:PAR:DEF:EXT 'S21_MEAS','S21'")
+            self._inst.write("DISP:WIND1:TRAC2:FEED 'S21_MEAS'")
+            existing['S21'] = 'S21_MEAS'
+
+        sweep_time_ms = 10000
+        prev_timeout = self._inst.timeout
+        self._inst.timeout = max(prev_timeout, sweep_time_ms)
+
+        self._inst.query('SENS1:SWE:MODE SING;*OPC?')
+
+        freqs = np.linspace(self._start_freq, self._stop_freq, self._num_points)
+
+        def _read_meas(name: str) -> np.ndarray:
+            self._inst.write(f"CALC1:PAR:SEL '{name}'")
+            raw = self._inst.query('CALC1:DATA? SDATA')
+            v = np.array([float(x) for x in raw.split(',')])
+            return v[0::2] + 1j * v[1::2]
+
+        s11_complex = _read_meas(existing['S11'])
+        s21_complex = _read_meas(existing['S21'])
+
+        self._inst.query('SENS1:SWE:MODE CONT;*OPC?')
+        self._inst.timeout = prev_timeout
+
+        return freqs, s11_complex, s21_complex
+
+    def save_s11_s21(
+        self,
+        freqs: np.ndarray,
+        s11: np.ndarray,
+        s21: np.ndarray,
+        folder: str,
+        filename: str | None = None,
+        optional_name: str = '',
+    ) -> str:
+        """
+        Save S11 and S21 data to a CSV file.
+
+        Columns: frequency_hz, s11_real, s11_imag, s11_db, s21_real, s21_imag, s21_db.
+
+        Returns
+        -------
+        str
+            Full path of the saved file.
+        """
+        os.makedirs(folder, exist_ok=True)
+
+        if filename is None:
+            filename = 's11_s21_' + optional_name + datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + '.csv'
+
+        s11_db = 20.0 * np.log10(np.abs(s11) + 1e-300)
+        s21_db = 20.0 * np.log10(np.abs(s21) + 1e-300)
+
+        data = np.column_stack([freqs, s11.real, s11.imag, s11_db, s21.real, s21.imag, s21_db])
+        full_path = os.path.join(folder, filename)
+        np.savetxt(
+            full_path,
+            data,
+            delimiter=',',
+            header='frequency_hz,s11_real,s11_imag,s11_db,s21_real,s21_imag,s21_db',
+            comments='',
+        )
+        return full_path
+
     def sweep_s11_db(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Convenience wrapper returning S11 magnitude in dB.
@@ -289,6 +387,74 @@ class VNA:
         )
         return full_path
 
+    # ------------------------------------------------------------------
+    # CW mode
+    # ------------------------------------------------------------------
+
+    def set_cw_mode(self, freq: float, power: float) -> None:
+        """
+        Put the VNA into CW (single-frequency) output mode.
+
+        The VNA outputs a continuous wave at the given frequency and power.
+        Call set_cw_freq() to step to a new frequency without changing power.
+        Call configure() to return to a swept measurement.
+
+        Parameters
+        ----------
+        freq:
+            CW frequency in Hz.
+        power:
+            Output power in dBm.
+        """
+        self._inst.write('SENS1:SWE:TYPE CW')
+        self._inst.write(f'SENS1:FREQ {float(freq)}')
+        self._inst.write(f'SOURCE1:POW {float(power)}')
+        self._inst.write('SENS1:SWE:MODE CONT')
+
+    def set_cw_freq(self, freq: float) -> None:
+        """Update the CW frequency without changing any other settings."""
+        self._inst.write(f'SENS1:FREQ {float(freq)}')
+
+    def set_cw_power(self, power: float) -> None:
+        """
+        Update the CW output power.
+
+        Briefly pauses and restarts the continuous sweep so the new power
+        level is guaranteed to take effect before returning.
+
+        Parameters
+        ----------
+        power:
+            Output power in dBm.
+        """
+        self._inst.write('SENS1:SWE:MODE HOLD')
+        self._inst.write(f'SOURCE1:POW {float(power)}')
+        self._inst.write('SENS1:SWE:MODE CONT')
+
+    def cw_off(self) -> None:
+        """Stop CW output by putting the VNA sweep into hold."""
+        self._inst.write('SENS1:SWE:MODE HOLD')
+
+    def plot_s11_s21(
+        self,
+        freqs: np.ndarray,
+        s11: np.ndarray,
+        s21: np.ndarray,
+        axes_width_mm: float = 180.0,
+        axes_height_mm: float = 100.0,
+        s21_ymin: float = -30.0,
+        s21_ymax: float = 5.0,
+        s11_ymin: float = -30.0,
+        s11_ymax: float = 5.0,
+        xmin: float = 0.0,
+        xmax: float = 10.0,
+    ) -> tuple[plt.Figure, plt.Axes, plt.Axes]:
+        """Plot S21 on the left y-axis and S11 on the right y-axis."""
+        return _plot_s11_s21(
+            freqs, s11, s21, axes_width_mm, axes_height_mm,
+            s21_ymin, s21_ymax, s11_ymin, s11_ymax, xmin, xmax,
+        )
+
     def plot_s11(
         self,
         freqs: np.ndarray,
@@ -357,10 +523,10 @@ def _plot_s11(
         top=(bottom_mm + axes_height_mm) / (bottom_mm + axes_height_mm + top_mm),
     )
 
-    ax.plot(freqs / 1e9, y, color='#D9B99B', linewidth=3.00)
+    ax.plot(freqs / 1e9, y, color='#C2B7E9', linewidth=3.00)
     ax.set_ylim([ymin, ymax])
-    ax.set_xlabel('Frequency (GHz)', fontsize=10)
-    ax.set_ylabel('S11 (dB)', fontsize=10)
+    ax.set_xlabel('Frequency [GHz]', fontsize=10)
+    ax.set_ylabel(r'$S_{11}$ [dB]', fontsize=10)
     ax.tick_params(axis='both', direction='in', width=2, labelsize=8)
     for side in ['top', 'bottom', 'left', 'right']:
         ax.spines[side].set_linewidth(2)
@@ -369,6 +535,68 @@ def _plot_s11(
         ax.grid()
 
     return fig, ax
+
+
+# ---------------------------------------------------------------------------
+# Module-level S11+S21 plot helper
+# ---------------------------------------------------------------------------
+
+def _plot_s11_s21(
+    freqs: np.ndarray,
+    s11: np.ndarray,
+    s21: np.ndarray,
+    axes_width_mm: float = 180.0,
+    axes_height_mm: float = 100.0,
+    s21_ymin: float = -30.0,
+    s21_ymax: float = 5.0,
+    s11_ymin: float = -30.0,
+    s11_ymax: float = 5.0,
+    xmin: float = 0.0,
+    xmax: float = 10.0,
+) -> tuple[plt.Figure, plt.Axes, plt.Axes]:
+    s11_db = 20.0 * np.log10(np.abs(s11) + 1e-300)
+    s21_db = 20.0 * np.log10(np.abs(s21) + 1e-300)
+
+    left_mm, right_mm = 20.0, 20.0
+    bottom_mm, top_mm = 12.0, 5.0
+
+    mm = 1.0 / 25.4
+    fig_w = (left_mm + axes_width_mm + right_mm) * mm
+    fig_h = (bottom_mm + axes_height_mm + top_mm) * mm
+    fig, ax_s21 = plt.subplots(figsize=(fig_w, fig_h))
+
+    fig.subplots_adjust(
+        left=left_mm / (left_mm + axes_width_mm + right_mm),
+        right=(left_mm + axes_width_mm) / (left_mm + axes_width_mm + right_mm),
+        bottom=bottom_mm / (bottom_mm + axes_height_mm + top_mm),
+        top=(bottom_mm + axes_height_mm) / (bottom_mm + axes_height_mm + top_mm),
+    )
+
+    # S21 on the left axis
+    ax_s21.plot(freqs / 1e9, s21_db, color='#9BB9D9', label=r'$S_{21}$')
+    ax_s21.set_ylim([s21_ymin, s21_ymax])
+    ax_s21.set_xlim([xmin, xmax])
+    ax_s21.set_xlabel('Frequency [GHz]', fontsize=10)
+    ax_s21.set_ylabel(r'$S_{21}$ [dB]', fontsize=10, color='#000000')
+    ax_s21.tick_params(axis='y', direction='in', width=2, labelsize=8, colors='#000000')
+    ax_s21.tick_params(axis='x', direction='in', width=2, labelsize=8)
+
+    # S11 on the right axis
+    ax_s11 = ax_s21.twinx()
+    ax_s11.plot(freqs / 1e9, s11_db, color='#D9B99B', label=r'$S_{11}$')
+    ax_s11.set_ylim([s11_ymin, s11_ymax])
+    ax_s11.set_ylabel(r'$S_{11}$ [dB]', fontsize=10, color='#000000')
+    ax_s11.tick_params(axis='y', direction='in', width=2, labelsize=8, colors='#000000')
+
+    for side in ['top', 'bottom', 'left', 'right']:
+        ax_s21.spines[side].set_linewidth(2)
+        ax_s11.spines[side].set_linewidth(2)
+
+    lines = [ax_s21.lines[0], ax_s11.lines[0]]
+    labels = [r'$S_{21}$', r'$S_{11}$']
+    ax_s21.legend(lines, labels, fontsize=8)
+
+    return fig, ax_s21, ax_s11
 
 
 # ---------------------------------------------------------------------------
@@ -393,16 +621,9 @@ class S11Data:
         self.filepath: str = filepath
 
     @classmethod
-    def from_folder(cls, folder: str) -> "S11Data":
-        """Load the most recently modified S11 CSV file in folder."""
-        csvs = [
-            os.path.join(folder, f)
-            for f in os.listdir(folder)
-            if f.endswith('.csv')
-        ]
-        if not csvs:
-            raise FileNotFoundError(f"No CSV files found in {folder!r}")
-        return cls(max(csvs, key=os.path.getmtime))
+    def from_file(cls, filepath: str) -> "S11Data":
+        """Load an S11 CSV file by its full path."""
+        return cls(filepath)
 
     def plot_s11(
         self,
@@ -414,4 +635,47 @@ class S11Data:
         """Plot the loaded S11 data. Same style as VNA.plot_s11()."""
         return _plot_s11(
             self.freqs, self.s11_complex, axes_width_mm, axes_height_mm, ymin, ymax
+        )
+
+
+class S11S21Data:
+    """Load and plot S11+S21 data previously saved by VNA.save_s11_s21()."""
+
+    def __init__(self, filepath: str):
+        """
+        Parameters
+        ----------
+        filepath:
+            Path to a CSV file written by VNA.save_s11_s21().
+            Expected columns: frequency_hz, s11_real, s11_imag, s11_db,
+                              s21_real, s21_imag, s21_db.
+        """
+        data = np.loadtxt(filepath, delimiter=',', skiprows=1)
+        self.freqs: np.ndarray = data[:, 0]
+        self.s11_complex: np.ndarray = data[:, 1] + 1j * data[:, 2]
+        self.s11_db: np.ndarray = data[:, 3]
+        self.s21_complex: np.ndarray = data[:, 4] + 1j * data[:, 5]
+        self.s21_db: np.ndarray = data[:, 6]
+        self.filepath: str = filepath
+
+    @classmethod
+    def from_file(cls, filepath: str) -> "S11S21Data":
+        """Load an S11+S21 CSV file by its full path."""
+        return cls(filepath)
+
+    def plot_s11_s21(
+        self,
+        axes_width_mm: float = 180.0,
+        axes_height_mm: float = 100.0,
+        s21_ymin: float = -30.0,
+        s21_ymax: float = 5.0,
+        s11_ymin: float = -30.0,
+        s11_ymax: float = 5.0,
+        xmin: float = 0.0,
+        xmax: float = 10.0,
+    ) -> tuple[plt.Figure, plt.Axes, plt.Axes]:
+        """Plot S21 on the left y-axis and S11 on the right y-axis."""
+        return _plot_s11_s21(
+            self.freqs, self.s11_complex, self.s21_complex,
+            axes_width_mm, axes_height_mm, s21_ymin, s21_ymax, s11_ymin, s11_ymax, xmin, xmax,
         )
