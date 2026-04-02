@@ -5,6 +5,16 @@ from datetime import datetime
 import numpy as np
 import pyvisa
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+from graphics import (
+    LIGHTBLUE2, DARKBLUE2,
+    spine_linewidth, tick_width, tick_direction,
+    axis_label_fontsize, tick_label_fontsize,
+    axes_width_mm as _default_axes_w,
+    axes_height_mm as _default_axes_h,
+    left_mm as _left_mm, right_mm as _right_mm,
+    bottom_mm as _bottom_mm, top_mm as _top_mm,
+)
 
 VNA_RESOURCE_STRING = 'TCPIP0::Localhost::hislip0::INSTR'
 
@@ -91,11 +101,12 @@ def plot_stability_s21(folder: str, ymin: float = -30.0, ymax: float = 5.0) -> t
         raise FileNotFoundError(f"No CSV files found in {folder!r}")
 
     n = len(csvs)
-    colors = [plt.cm.Blues(0.3 + 0.7 * i / max(n - 1, 1)) for i in range(n)]
+    _cmap = LinearSegmentedColormap.from_list('s21_stability', [LIGHTBLUE2, DARKBLUE2])
+    colors = [_cmap(0.3 + 0.7 * i / max(n - 1, 1)) for i in range(n)]
 
-    left_mm, right_mm = 20.0, 5.0
-    bottom_mm, top_mm = 12.0, 5.0
-    axes_width_mm, axes_height_mm = 180.0, 100.0
+    left_mm, right_mm = _left_mm, _right_mm
+    bottom_mm, top_mm = _bottom_mm, _top_mm
+    axes_width_mm, axes_height_mm = _default_axes_w, _default_axes_h
     mm = 1.0 / 25.4
     fig, ax = plt.subplots(figsize=(
         (left_mm + axes_width_mm + right_mm) * mm,
@@ -114,11 +125,12 @@ def plot_stability_s21(folder: str, ymin: float = -30.0, ymax: float = 5.0) -> t
         ax.plot(data.freqs / 1e9, s21_db, color=color, linewidth=1.0)
 
     ax.set_ylim([ymin, ymax])
-    ax.set_xlabel('Frequency [GHz]', fontsize=10)
-    ax.set_ylabel(r'$S_{21}$ [dB]', fontsize=10)
-    ax.tick_params(axis='both', direction='in', width=2, labelsize=8)
+    ax.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
+    ax.set_ylabel(r'$S_{21}$ [dB]', fontsize=axis_label_fontsize)
+    ax.tick_params(axis='both', direction=tick_direction, width=tick_width,
+                   labelsize=tick_label_fontsize)
     for side in ['top', 'bottom', 'left', 'right']:
-        ax.spines[side].set_linewidth(2)
+        ax.spines[side].set_linewidth(spine_linewidth)
 
     return fig, ax
 

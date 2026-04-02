@@ -34,6 +34,15 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvisa
+from graphics import (
+    VIOLET2, LIGHTBLUE2, BEIGE2,
+    spine_linewidth, tick_width, tick_direction,
+    axis_label_fontsize, tick_label_fontsize,
+    axes_width_mm as _default_axes_w,
+    axes_height_mm as _default_axes_h,
+    left_mm as _left_mm, right_mm as _right_mm,
+    bottom_mm as _bottom_mm, top_mm as _top_mm,
+)
 
 
 class VNA:
@@ -497,8 +506,8 @@ class VNA:
 def _plot_s11(
     freqs: np.ndarray,
     s11: np.ndarray,
-    axes_width_mm: float = 180.0,
-    axes_height_mm: float = 100.0,
+    axes_width_mm: float = _default_axes_w,
+    axes_height_mm: float = _default_axes_h,
     ymin: float = -30.0,
     ymax: float = 5.0,
     is_grid: bool = True
@@ -508,8 +517,8 @@ def _plot_s11(
     else:
         y = np.asarray(s11)
 
-    left_mm, right_mm = 14.0, 5.0
-    bottom_mm, top_mm = 12.0, 5.0
+    left_mm, right_mm = _left_mm, _right_mm
+    bottom_mm, top_mm = _bottom_mm, _top_mm
 
     mm = 1.0 / 25.4
     fig_w = (left_mm + axes_width_mm + right_mm) * mm
@@ -523,13 +532,14 @@ def _plot_s11(
         top=(bottom_mm + axes_height_mm) / (bottom_mm + axes_height_mm + top_mm),
     )
 
-    ax.plot(freqs / 1e9, y, color='#C2B7E9', linewidth=3.00)
+    ax.plot(freqs / 1e9, y, color=VIOLET2, linewidth=3.00)
     ax.set_ylim([ymin, ymax])
-    ax.set_xlabel('Frequency [GHz]', fontsize=10)
-    ax.set_ylabel(r'$S_{11}$ [dB]', fontsize=10)
-    ax.tick_params(axis='both', direction='in', width=2, labelsize=8)
+    ax.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
+    ax.set_ylabel(r'$S_{11}$ [dB]', fontsize=axis_label_fontsize)
+    ax.tick_params(axis='both', direction=tick_direction, width=tick_width,
+                   labelsize=tick_label_fontsize)
     for side in ['top', 'bottom', 'left', 'right']:
-        ax.spines[side].set_linewidth(2)
+        ax.spines[side].set_linewidth(spine_linewidth)
 
     if is_grid:
         ax.grid()
@@ -545,8 +555,8 @@ def _plot_s11_s21(
     freqs: np.ndarray,
     s11: np.ndarray,
     s21: np.ndarray,
-    axes_width_mm: float = 180.0,
-    axes_height_mm: float = 100.0,
+    axes_width_mm: float = _default_axes_w,
+    axes_height_mm: float = _default_axes_h,
     s21_ymin: float = -30.0,
     s21_ymax: float = 5.0,
     s11_ymin: float = -30.0,
@@ -557,8 +567,8 @@ def _plot_s11_s21(
     s11_db = 20.0 * np.log10(np.abs(s11) + 1e-300)
     s21_db = 20.0 * np.log10(np.abs(s21) + 1e-300)
 
-    left_mm, right_mm = 20.0, 20.0
-    bottom_mm, top_mm = 12.0, 5.0
+    left_mm, right_mm = 20.0, 20.0  # wider margins for dual y-axis labels
+    bottom_mm, top_mm = _bottom_mm, _top_mm
 
     mm = 1.0 / 25.4
     fig_w = (left_mm + axes_width_mm + right_mm) * mm
@@ -573,28 +583,31 @@ def _plot_s11_s21(
     )
 
     # S21 on the left axis
-    ax_s21.plot(freqs / 1e9, s21_db, color='#9BB9D9', label=r'$S_{21}$')
+    ax_s21.plot(freqs / 1e9, s21_db, color=LIGHTBLUE2, label=r'$S_{21}$')
     ax_s21.set_ylim([s21_ymin, s21_ymax])
     ax_s21.set_xlim([xmin, xmax])
-    ax_s21.set_xlabel('Frequency [GHz]', fontsize=10)
-    ax_s21.set_ylabel(r'$S_{21}$ [dB]', fontsize=10, color='#000000')
-    ax_s21.tick_params(axis='y', direction='in', width=2, labelsize=8, colors='#000000')
-    ax_s21.tick_params(axis='x', direction='in', width=2, labelsize=8)
+    ax_s21.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
+    ax_s21.set_ylabel(r'$S_{21}$ [dB]', fontsize=axis_label_fontsize, color='#000000')
+    ax_s21.tick_params(axis='y', direction=tick_direction, width=tick_width,
+                       labelsize=tick_label_fontsize, colors='#000000')
+    ax_s21.tick_params(axis='x', direction=tick_direction, width=tick_width,
+                       labelsize=tick_label_fontsize)
 
     # S11 on the right axis
     ax_s11 = ax_s21.twinx()
-    ax_s11.plot(freqs / 1e9, s11_db, color='#D9B99B', label=r'$S_{11}$')
+    ax_s11.plot(freqs / 1e9, s11_db, color=BEIGE2, label=r'$S_{11}$')
     ax_s11.set_ylim([s11_ymin, s11_ymax])
-    ax_s11.set_ylabel(r'$S_{11}$ [dB]', fontsize=10, color='#000000')
-    ax_s11.tick_params(axis='y', direction='in', width=2, labelsize=8, colors='#000000')
+    ax_s11.set_ylabel(r'$S_{11}$ [dB]', fontsize=axis_label_fontsize, color='#000000')
+    ax_s11.tick_params(axis='y', direction=tick_direction, width=tick_width,
+                       labelsize=tick_label_fontsize, colors='#000000')
 
     for side in ['top', 'bottom', 'left', 'right']:
-        ax_s21.spines[side].set_linewidth(2)
-        ax_s11.spines[side].set_linewidth(2)
+        ax_s21.spines[side].set_linewidth(spine_linewidth)
+        ax_s11.spines[side].set_linewidth(spine_linewidth)
 
     lines = [ax_s21.lines[0], ax_s11.lines[0]]
     labels = [r'$S_{21}$', r'$S_{11}$']
-    ax_s21.legend(lines, labels, fontsize=8)
+    ax_s21.legend(lines, labels, fontsize=tick_label_fontsize)
 
     return fig, ax_s21, ax_s11
 

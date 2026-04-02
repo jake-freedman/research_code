@@ -29,6 +29,17 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvisa
+from scipy.optimize import fsolve
+from scipy.special import j1, jn
+from graphics import (
+    GREEN2,
+    spine_linewidth, tick_width, tick_direction,
+    axis_label_fontsize, tick_label_fontsize,
+    axes_width_mm as _default_axes_w,
+    axes_height_mm as _default_axes_h,
+    left_mm as _left_mm, right_mm as _right_mm,
+    bottom_mm as _bottom_mm, top_mm as _top_mm,
+)
 
 
 class ESA:
@@ -220,8 +231,8 @@ class ESA:
         self,
         freqs: np.ndarray,
         power_db: np.ndarray,
-        axes_width_mm: float = 180.0,
-        axes_height_mm: float = 100.0,
+        axes_width_mm: float = _default_axes_w,
+        axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
         ymax: float | None = None,
     ) -> tuple[plt.Figure, plt.Axes]:
@@ -249,13 +260,13 @@ class ESA:
 def _plot_spectrum(
     freqs: np.ndarray,
     power_db: np.ndarray,
-    axes_width_mm: float = 180.0,
-    axes_height_mm: float = 100.0,
+    axes_width_mm: float = _default_axes_w,
+    axes_height_mm: float = _default_axes_h,
     ymin: float | None = None,
     ymax: float | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
-    left_mm, right_mm = 14.0, 5.0
-    bottom_mm, top_mm = 12.0, 5.0
+    left_mm, right_mm = _left_mm, _right_mm
+    bottom_mm, top_mm = _bottom_mm, _top_mm
 
     mm = 1.0 / 25.4
     fig_w = (left_mm + axes_width_mm + right_mm) * mm
@@ -269,16 +280,17 @@ def _plot_spectrum(
         top=(bottom_mm + axes_height_mm) / (bottom_mm + axes_height_mm + top_mm),
     )
 
-    ax.plot(freqs / 1e9, power_db, color='#B9D9B9')
+    ax.plot(freqs / 1e9, power_db, color=GREEN2)
 
     if ymin is not None or ymax is not None:
         ax.set_ylim([ymin, ymax])
 
-    ax.set_xlabel('Frequency [GHz]', fontsize=10)
-    ax.set_ylabel('Power [dBm]', fontsize=10)
-    ax.tick_params(axis='both', direction='in', width=2, labelsize=8)
+    ax.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
+    ax.set_ylabel('Power [dBm]', fontsize=axis_label_fontsize)
+    ax.tick_params(axis='both', direction=tick_direction, width=tick_width,
+                   labelsize=tick_label_fontsize)
     for side in ['top', 'bottom', 'left', 'right']:
-        ax.spines[side].set_linewidth(2)
+        ax.spines[side].set_linewidth(spine_linewidth)
 
     return fig, ax
 
@@ -308,10 +320,58 @@ class ESAData:
         """Load an ESA CSV file by its full path."""
         return cls(filepath)
 
+    def modulation_depth(
+        self,
+        mod_freq: float,
+        window_hz: float = 20e6,
+        beta_guess: float = 1.0,
+    ) -> float:
+        """Extract the MZM sinusoidal modulation depth beta from the ESA spectrum.
+
+        Finds the peak power within a window around the fundamental (mod_freq)
+        and third harmonic (3 * mod_freq), converts from dBm to linear power,
+        then solves sqrt(P1/P3) = J1(beta) / J3(beta) for beta.
+
+        Parameters
+        ----------
+        mod_freq : float
+            Modulation frequency in Hz.
+        window_hz : float
+            Half-width of the search window around each harmonic in Hz.
+            Default 20 MHz.
+        beta_guess : float
+            Initial guess for the modulation depth in radians. Default 1.0.
+
+        Returns
+        -------
+        float
+            Modulation depth beta in radians.
+        """
+        def _peak_power_linear(center_hz):
+            mask = np.abs(self.freqs - center_hz) <= window_hz
+            if not np.any(mask):
+                raise ValueError(
+                    f"No frequency points within {window_hz/1e6:.1f} MHz of "
+                    f"{center_hz/1e9:.4f} GHz."
+                )
+            peak_dbm = self.power_db[mask].max()
+            return 10.0 ** (peak_dbm / 10.0)  # mW
+
+        p1 = _peak_power_linear(mod_freq)
+        p3 = _peak_power_linear(3.0 * mod_freq)
+
+        target = np.sqrt(p1 / p3)  # = J1(beta) / J3(beta)
+
+        def residual(beta):
+            return j1(beta) / jn(3, beta) - target
+
+        beta_arr = fsolve(residual, beta_guess, full_output=False)
+        return float(beta_arr[0])
+
     def plot(
         self,
-        axes_width_mm: float = 180.0,
-        axes_height_mm: float = 100.0,
+        axes_width_mm: float = _default_axes_w,
+        axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
         ymax: float | None = None,
     ) -> tuple[plt.Figure, plt.Axes]:

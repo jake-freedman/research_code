@@ -29,11 +29,24 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+from graphics import (
+    LIGHTBLUE2, DARKBLUE2, VIOLET2, BLUE2,
+    spine_linewidth, tick_width, tick_direction,
+    axis_label_fontsize, tick_label_fontsize,
+    axes_width_mm as _default_axes_w,
+    axes_height_mm as _default_axes_h,
+    left_mm as _left_mm, right_mm as _right_mm,
+    bottom_mm as _bottom_mm, top_mm as _top_mm,
+)
+
+_CMAP_CWFREQ = LinearSegmentedColormap.from_list('cwfreq', [LIGHTBLUE2, DARKBLUE2])
+_CMAP_POWER = LinearSegmentedColormap.from_list('power', [VIOLET2, BLUE2])
 
 
-def _make_figure(axes_width_mm=180.0, axes_height_mm=100.0):
-    left_mm, right_mm = 14.0, 5.0
-    bottom_mm, top_mm = 12.0, 5.0
+def _make_figure(axes_width_mm=_default_axes_w, axes_height_mm=_default_axes_h):
+    left_mm, right_mm = _left_mm, _right_mm
+    bottom_mm, top_mm = _bottom_mm, _top_mm
     mm = 1.0 / 25.4
     fig, ax = plt.subplots(figsize=(
         (left_mm + axes_width_mm + right_mm) * mm,
@@ -49,9 +62,10 @@ def _make_figure(axes_width_mm=180.0, axes_height_mm=100.0):
 
 
 def _style_axes(ax):
-    ax.tick_params(axis='both', direction='in', width=2, labelsize=8)
+    ax.tick_params(axis='both', direction=tick_direction, width=tick_width,
+                   labelsize=tick_label_fontsize)
     for side in ['top', 'bottom', 'left', 'right']:
-        ax.spines[side].set_linewidth(2)
+        ax.spines[side].set_linewidth(spine_linewidth)
 
 
 def _parse_file(filepath: str):
@@ -94,11 +108,11 @@ class CWFreqSweepData:
 
     def plot(
         self,
-        axes_width_mm: float = 180.0,
-        axes_height_mm: float = 100.0,
+        axes_width_mm: float = _default_axes_w,
+        axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
         ymax: float | None = None,
-        colormap: str = 'Greens',
+        colormap=_CMAP_CWFREQ,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot all spectra on one axes, coloured across the CW frequency range.
@@ -107,8 +121,8 @@ class CWFreqSweepData:
         ----------
         ymin, ymax : float, optional
             Y-axis limits in dBm.
-        colormap : str
-            Matplotlib colormap name. Default 'Greens'.
+        colormap : colormap or str
+            Matplotlib colormap. Default is LIGHTBLUE2→DARKBLUE2.
 
         Returns
         -------
@@ -116,7 +130,7 @@ class CWFreqSweepData:
         """
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
         n = self.spectra.shape[1]
-        cmap = plt.get_cmap(colormap)
+        cmap = plt.get_cmap(colormap) if isinstance(colormap, str) else colormap
         colors = [cmap(0.3 + 0.7 * i / max(n - 1, 1)) for i in range(n)]
 
         for i, color in enumerate(colors):
@@ -124,8 +138,8 @@ class CWFreqSweepData:
 
         if ymin is not None or ymax is not None:
             ax.set_ylim([ymin, ymax])
-        ax.set_xlabel('Frequency [GHz]', fontsize=10)
-        ax.set_ylabel('Power [dBm]', fontsize=10)
+        ax.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
+        ax.set_ylabel('Power [dBm]', fontsize=axis_label_fontsize)
         _style_axes(ax)
 
         # Colorbar to show which colour = which CW frequency
@@ -135,8 +149,8 @@ class CWFreqSweepData:
         )
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, pad=0.02)
-        cbar.set_label('VNA CW frequency [GHz]', fontsize=8)
-        cbar.ax.tick_params(labelsize=8)
+        cbar.set_label('VNA CW frequency [GHz]', fontsize=axis_label_fontsize)
+        cbar.ax.tick_params(labelsize=tick_label_fontsize)
 
         return fig, ax
 
@@ -165,11 +179,11 @@ class PowerSweepData:
 
     def plot(
         self,
-        axes_width_mm: float = 180.0,
-        axes_height_mm: float = 100.0,
+        axes_width_mm: float = _default_axes_w,
+        axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
         ymax: float | None = None,
-        colormap: str = 'Purples',
+        colormap=_CMAP_POWER,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot all spectra on one axes, coloured across the power range.
@@ -178,8 +192,8 @@ class PowerSweepData:
         ----------
         ymin, ymax : float, optional
             Y-axis limits in dBm.
-        colormap : str
-            Matplotlib colormap name. Default 'Purples'.
+        colormap : colormap or str
+            Matplotlib colormap. Default is VIOLET2→BLUE2.
 
         Returns
         -------
@@ -187,7 +201,7 @@ class PowerSweepData:
         """
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
         n = self.spectra.shape[1]
-        cmap = plt.get_cmap(colormap)
+        cmap = plt.get_cmap(colormap) if isinstance(colormap, str) else colormap
         colors = [cmap(0.3 + 0.7 * i / max(n - 1, 1)) for i in range(n)]
 
         for i, color in enumerate(colors):
@@ -195,8 +209,8 @@ class PowerSweepData:
 
         if ymin is not None or ymax is not None:
             ax.set_ylim([ymin, ymax])
-        ax.set_xlabel('Frequency [GHz]', fontsize=10)
-        ax.set_ylabel('Power [dBm]', fontsize=10)
+        ax.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
+        ax.set_ylabel('Power [dBm]', fontsize=axis_label_fontsize)
         _style_axes(ax)
 
         sm = plt.cm.ScalarMappable(
@@ -205,8 +219,8 @@ class PowerSweepData:
         )
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, pad=0.02)
-        cbar.set_label('VNA output power [dBm]', fontsize=8)
-        cbar.ax.tick_params(labelsize=8)
+        cbar.set_label('VNA output power [dBm]', fontsize=axis_label_fontsize)
+        cbar.ax.tick_params(labelsize=tick_label_fontsize)
 
         return fig, ax
 
@@ -243,8 +257,8 @@ class PowerSweepData:
         self,
         freq_min: float,
         freq_max: float,
-        axes_width_mm: float = 180.0,
-        axes_height_mm: float = 100.0,
+        axes_width_mm: float = _default_axes_w,
+        axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
         ymax: float | None = None,
     ) -> tuple[plt.Figure, plt.Axes]:
@@ -266,13 +280,13 @@ class PowerSweepData:
         cw_powers, peak_powers = self.peak_power_vs_vna_power(freq_min, freq_max)
 
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
-        ax.plot(cw_powers, peak_powers, color='#7B5EA7', linewidth=1.5, marker='o',
+        ax.plot(cw_powers, peak_powers, color=DARKBLUE2, linewidth=1.5, marker='o',
                 markersize=4)
 
         if ymin is not None or ymax is not None:
             ax.set_ylim([ymin, ymax])
-        ax.set_xlabel('VNA output power [dBm]', fontsize=10)
-        ax.set_ylabel('Peak ESA power [dBm]', fontsize=10)
+        ax.set_xlabel('VNA output power [dBm]', fontsize=axis_label_fontsize)
+        ax.set_ylabel('Peak ESA power [dBm]', fontsize=axis_label_fontsize)
         _style_axes(ax)
 
         return fig, ax

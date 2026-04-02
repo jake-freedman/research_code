@@ -7,14 +7,14 @@ of VNA output power.
 """
 
 import matplotlib.pyplot as plt
-
 from esa_sweep_data import PowerSweepData
+from path_utils import local_path
 
 # ------------------------------------------------------------------
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\libbu2_w15_die1-2_mzm_c3_power_sweep_2026-04-01-16-35-43.csv"
+DATA_FILE = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\libbu2_w15_die1-2_mzm_c3_power_sweep_2026-04-01-16-35-43.csv"
 
 # Frequency window for peak search (Hz)
 FREQ_MIN = 5e9
@@ -26,7 +26,7 @@ YMAX = None
 
 
 def main():
-    data = PowerSweepData.from_file(DATA_FILE)
+    data = PowerSweepData.from_file(local_path(DATA_FILE))
 
     # Print a summary
     print(f"Loaded: {DATA_FILE}")
