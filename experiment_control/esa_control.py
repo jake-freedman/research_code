@@ -360,10 +360,11 @@ class ESAData:
         p1 = _peak_power_linear(mod_freq)
         p3 = _peak_power_linear(3.0 * mod_freq)
 
-        target = np.sqrt(p1 / p3)  # = J1(beta) / J3(beta)
+        target = np.sqrt(p3 / p1)  # = J3(beta) / J1(beta), zero at beta=0
+        # print(mod_freq, target)
 
         def residual(beta):
-            return j1(beta) / jn(3, beta) - target
+            return jn(3, beta) / j1(beta) - target
 
         beta_arr = fsolve(residual, beta_guess, full_output=False)
         return float(beta_arr[0])
