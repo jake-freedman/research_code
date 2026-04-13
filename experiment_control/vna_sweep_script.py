@@ -140,11 +140,12 @@ def plot_from_file():
     # data.plot_s11(ymin=-13, ymax = 1)
     # plt.show()
 
-    data = S11S21Data.from_file(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\s11_s21_libbu2_w15_die1-2_mzm_c32026-04-01-11-12-47.csv")
-    fig, _, _ = data.plot_s11_s21(s21_ymin=-110, s21_ymax=-60, s11_ymin=-20, s11_ymax=-5, xmin=2, xmax=3)
+    data = S11S21Data.from_file(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\s11_s21_libbu2_w15_die1-2_mzm_c32026-04-01-11-13-19.csv")
+    fig, _, _ = data.plot_s11_s21(s21_ymin=-110, s21_ymax=-60, s11_ymin=-20, s11_ymax=-2, xmin=-0.2, xmax=5.2, axes_height_mm=80, axes_width_mm=150)
+    # fig, _ = data.plot_s11(ymin=-20, ymax=2, xmin=-0.2, xmax=5.2)
     plt.show()
 
-    # fig.savefig(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\s21_mzm_zoomin.png", dpi = 300)
+    fig.savefig(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\s21_mzm_c3_for_moonshot_update.png", dpi = 300)
 
 
 if __name__ == '__main__':

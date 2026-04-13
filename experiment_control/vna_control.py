@@ -532,7 +532,7 @@ def _plot_s11(
         top=(bottom_mm + axes_height_mm) / (bottom_mm + axes_height_mm + top_mm),
     )
 
-    ax.plot(freqs / 1e9, y, color=VIOLET2, linewidth=3.00)
+    ax.plot(freqs / 1e9, y, color=BEIGE2, linewidth=3.00)
     ax.set_ylim([ymin, ymax])
     ax.set_xlabel('Frequency [GHz]', fontsize=axis_label_fontsize)
     ax.set_ylabel(r'$S_{11}$ [dB]', fontsize=axis_label_fontsize)
@@ -692,3 +692,21 @@ class S11S21Data:
             self.freqs, self.s11_complex, self.s21_complex,
             axes_width_mm, axes_height_mm, s21_ymin, s21_ymax, s11_ymin, s11_ymax, xmin, xmax,
         )
+
+    def plot_s11(
+        self,
+        axes_width_mm: float = 180.0,
+        axes_height_mm: float = 100.0,
+        ymin: float = -30.0,
+        ymax: float = 5.0,
+        xmin: float | None = None,
+        xmax: float | None = None,
+    ) -> tuple[plt.Figure, plt.Axes]:
+        """Plot S11 only."""
+        fig, ax = _plot_s11(
+            self.freqs, self.s11_complex,
+            axes_width_mm, axes_height_mm, ymin, ymax,
+        )
+        if xmin is not None or xmax is not None:
+            ax.set_xlim([xmin, xmax])
+        return fig, ax
