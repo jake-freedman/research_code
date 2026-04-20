@@ -1,0 +1,8 @@
+{
+  "beta1": 3.0193234203245285,
+  "beta2": 3.0193498895027,
+  "ratio": 0.23267512764561668,
+  "nit": 30,
+  "nfev": 141032,
+  "message": "['requested number of basinhopping iterations completed successfully']"
+}

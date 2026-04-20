@@ -1,0 +1,9 @@
+{
+  "wanted_harmonic": 1,
+  "beta_max": 10.0,
+  "n_max": 15,
+  "poly_order": null,
+  "n_iter": 30,
+  "seed": 42,
+  "resumed_from": null
+}
