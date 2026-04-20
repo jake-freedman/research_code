@@ -37,9 +37,12 @@ N_ITER          = 200     # basin-hopping iterations
 SEED            = None    # integer for reproducibility, or None for random
 OBJECTIVE       = "power" # "ratio": minimise unwanted/wanted power ratio
                           # "power": maximise power at wanted harmonic
+PHI_MAX         = None    # maximum phase shift (rad) per harmonic; None = no limit
+                          # free-phase mode: hard bound [0, PHI_MAX]
+                          # polynomial mode: soft quadratic penalty
 
 # Full path to the folder where timestamped result sub-folders will be saved.
-OUT_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
+OUT_DIR = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
 
 # Set to a previous result folder path to warm-start, or None to start fresh.
 RESUME = None   # e.g. r"C:\path\to\results\20260417_153012"
@@ -95,6 +98,7 @@ config = dict(
     n_iter          = N_ITER,
     seed            = SEED,
     objective       = OBJECTIVE,
+    phi_max         = PHI_MAX,
     resumed_from    = RESUME,
 )
 print("Running optimisation with config:", config)
@@ -109,6 +113,7 @@ res = optimize_ssb(
     seed            = SEED,
     x0              = x0,
     objective       = OBJECTIVE,
+    phi_max         = PHI_MAX,
 )
 
 total_power  = float(np.sum(np.abs(res["amplitudes"]) ** 2))

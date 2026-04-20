@@ -15,7 +15,7 @@ from ssb_spectrum import compute_optical_spectrum_general, plot_optical_spectrum
 # ---------------------------------------------------------------------------
 # Paste the path to the result folder here
 # ---------------------------------------------------------------------------
-RESULT_FOLDER = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260417_155421"
+RESULT_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260417_155421"
 USE_DB        = True   # set True to show spectrum in dB
 DB_FLOOR      = -30.0  # dB floor (only used when USE_DB = True)
 PHASE_MOD_2PI  = True  # set True to wrap phase profiles to [0, 2*pi)

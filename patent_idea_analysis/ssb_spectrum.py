@@ -347,6 +347,7 @@ def optimize_ssb(
     seed: int | None = None,
     x0: np.ndarray | None = None,
     objective: str = "ratio",
+    phi_max: float | None = None,
 ) -> dict:
     """
     Use basin-hopping to minimise unwanted/wanted harmonic power ratio.
@@ -388,6 +389,11 @@ def optimize_ssb(
         Optional warm-start parameter vector.
     objective : str
         "ratio" or "power" (default "ratio").
+    phi_max : float or None
+        Maximum phase shift (rad) applied to any harmonic.
+        - Free phase (poly_order=None): upper bound per-harmonic parameter clamped to [0, phi_max].
+        - Polynomial phase: enforced via a soft quadratic penalty added to the objective.
+        If None, no limit is applied (free phase defaults to [0, 2*pi]).
 
     Returns
     -------
@@ -414,8 +420,9 @@ def optimize_ssb(
     if poly_order is None:
         n_phase    = 2 * n_max + 1
         n_phases   = [n_phase] * n_disp
-        phi_lowers = [np.zeros(n_phase)]           * n_disp
-        phi_uppers = [np.full(n_phase, 2 * np.pi)] * n_disp
+        _phi_upper = phi_max if phi_max is not None else 2 * np.pi
+        phi_lowers = [np.zeros(n_phase)]                * n_disp
+        phi_uppers = [np.full(n_phase, _phi_upper)]     * n_disp
     else:
         n_phases   = [poly_order + 1] * n_disp
         phi_lowers = [np.full(poly_order + 1, -np.inf)] * n_disp
@@ -456,10 +463,17 @@ def optimize_ssb(
         power        = np.abs(amps) ** 2
         wanted_power = power[_wanted_idx]
         if objective == "power":
-            return -wanted_power
-        if wanted_power < 1e-30:
-            return 1e30
-        return (power.sum() - wanted_power) / wanted_power
+            val = -wanted_power
+        elif wanted_power < 1e-30:
+            val = 1e30
+        else:
+            val = (power.sum() - wanted_power) / wanted_power
+        # Soft penalty for poly mode: free-phase mode is handled by hard bounds.
+        if phi_max is not None and poly_order is not None:
+            for phi_arr in phi_arrs:
+                excess = np.maximum(0.0, np.abs(phi_arr) - phi_max)
+                val += 1e4 * np.sum(excess ** 2)
+        return val
 
     # ------------------------------------------------------------------
     # Custom step
@@ -477,7 +491,8 @@ def optimize_ssb(
             x[:n_stages]  = np.clip(x[:n_stages], 0.0, beta_max)
             x[n_stages:] += rng.uniform(-phase_step, phase_step, size=n_phase_total) * self.stepsize
             if poly_order is None:
-                x[n_stages:] = x[n_stages:] % (2 * np.pi)
+                _wrap = phi_max if phi_max is not None else 2 * np.pi
+                x[n_stages:] = x[n_stages:] % _wrap
             return x
 
     # ------------------------------------------------------------------
