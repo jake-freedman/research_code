@@ -36,6 +36,8 @@ N_TERMS         = 50      # harmonic truncation (n = -N_TERMS .. N_TERMS)
 USE_DB   = False          # show heatmap (n=2 only) in dB
 DB_FLOOR = -30.0          # dB floor for colour scale
 
+SAVE_PATH = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\best1"          # e.g. r"C:\path\to\figure.png"; None = don't save
+
 # ---------------------------------------------------------------------------
 # Helper: max-efficiency amplitude for one beta combination via iterative
 # absolute-value convolution
@@ -80,7 +82,7 @@ print(f"  E amplitude = {amp_best:.6f}")
 # ---------------------------------------------------------------------------
 if True:  # always runs (N_STAGES==2 guaranteed above)
     mm_per_inch = 25.4
-    width_mm, height_mm = 150.0, 130.0
+    width_mm, height_mm = 130.0, 90.0
     cbar_pad_mm = 12.0
 
     left_in   = 0.60
@@ -107,7 +109,7 @@ if True:  # always runs (N_STAGES==2 guaranteed above)
     if USE_DB:
         plot_data  = 10.0 * np.log10(np.maximum(E_sq, 10 ** (DB_FLOOR / 10)))
         vmin, vmax = DB_FLOOR, 0.0
-        cbar_label = r"Max power efficiency  (dB)"
+        cbar_label = r"Max power efficiency  [dB]"
     else:
         plot_data  = E_sq
         vmin, vmax = 0.0, 1.0
@@ -123,8 +125,8 @@ if True:  # always runs (N_STAGES==2 guaranteed above)
         interpolation="bilinear",
     )
 
-    ax.set_xlabel(r"$\beta_1$  (rad)", fontsize=10, **font_props)
-    ax.set_ylabel(r"$\beta_2$  (rad)", fontsize=10, **font_props)
+    ax.set_xlabel(r"$\beta_1$  [rad]", fontsize=10, **font_props)
+    ax.set_ylabel(r"$\beta_2$  [rad]", fontsize=10, **font_props)
 
     for spine in ax.spines.values():
         spine.set_linewidth(2)
@@ -145,4 +147,7 @@ if True:  # always runs (N_STAGES==2 guaranteed above)
     for label in cb.ax.get_yticklabels():
         label.set_fontfamily("Arial")
 
+    if SAVE_PATH is not None:
+        fig.savefig(SAVE_PATH, dpi=200)
+        print(f"Figure saved to {SAVE_PATH}")
     plt.show()
