@@ -31,8 +31,7 @@ from datetime import datetime
 
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.path import Path
+
 import numpy as np
 from scipy.special import jv
 
@@ -41,28 +40,37 @@ from ssb_spectrum import optimize_ssb
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-N_SIDEBANDS = 8       # compute efficiency for sidebands 1 .. N_SIDEBANDS
+N_SIDEBANDS = 2       # compute efficiency for sidebands 1 .. N_SIDEBANDS
 N_STAGES    = 3       # number of phase modulators
 
-BETA_MAX    = 10.0    # modulation depth search range [rad]
+BETA_MAX    = 5.0    # modulation depth search range [rad]
 
 # Analytical mode (N_STAGES == 2 only)
 N_POINTS    = 60      # grid points per beta axis
 N_TERMS     = 50      # harmonic truncation for analytical computation
 
 # Optimizer mode (N_STAGES > 2)
-N_MAX       = 10      # harmonic truncation order per PM stage
-N_ITER      = 100     # basin-hopping iterations per sideband
+N_MAX       = 20      # harmonic truncation order per PM stage
+N_ITER      = 1     # basin-hopping iterations per sideband
 SEED        = 1    # integer for reproducibility, or None for random
 
 # Path where a timestamped results folder will be created.
-DATA_DIR  = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"      # e.g. r"C:\path\to\data"
+DATA_DIR  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"      # e.g. r"C:\path\to\data"
 
 # Set to a previously saved folder to skip computation and just re-plot.
-LOAD_PATH = None      # e.g. r"C:\path\to\data\20260421_143012"
+LOAD_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\sideband_up_to8_3pm"      # e.g. r"C:\path\to\data\20260421_143012"
 
 # Path to save the figure image; None = don't save.
-SAVE_PATH = None      # e.g. r"C:\path\to\figure.png"
+SAVE_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\3mods_max_eff"      # e.g. r"C:\path\to\figure.png"
+
+# If True: strip all axis labels and tick labels, raise spines above content,
+# set y-max to 1.1, and save as .svg regardless of SAVE_PATH extension.
+PUBLISHED_PLOT = True
+
+# 2-PM reference hlines (shown only when N_STAGES > 2)
+REF_BETA_MAX = 10.0   # beta search range for 2-PM analytical bound
+REF_N_POINTS = 60     # grid points per beta axis
+REF_N_TERMS  = 50     # harmonic truncation
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -87,9 +95,10 @@ def _save_optimizer_result(folder, res):
     np.save(os.path.join(folder, "phi_params.npy"), phi_arr, allow_pickle=True)
 
 
-def _make_plot(sidebands, max_powers, max_powers_1pm, n_stages, n_sidebands):
+def _make_plot(sidebands, max_powers, max_powers_1pm, n_sidebands,
+               max_powers_2pm=None, published_plot=False):
     mm_per_inch = 25.4
-    width_mm, height_mm = 100.0, 90.0
+    width_mm, height_mm = 55, 45
 
     left_in   = 0.60
     bottom_in = 0.50
@@ -113,72 +122,52 @@ def _make_plot(sidebands, max_powers, max_powers_1pm, n_stages, n_sidebands):
     ])
 
     cmap   = matplotlib.colormaps["rainbow_r"]
-    colors = [cmap(i / (n_sidebands - 1)) for i in range(n_sidebands)]
+    colors = [cmap((k + 9) / 18) for k in sidebands]
 
-    bar_width = 0.6
+    bar_width = 0.5
     bar_half  = bar_width / 2
 
-    r_mm    = 2.5
-    x_range = n_sidebands
-    y_range = 1.0
-    rx = r_mm * x_range / width_mm
-    ry = r_mm * y_range / height_mm
-    kappa = 0.5523
-
-    def rounded_bar_path(x0, y0, w, h, rx, ry):
-        x1, x2 = x0, x0 + w
-        y1, y2 = y0, y0 + h
-        verts = [
-            (x1,      y1),
-            (x2,      y1),
-            (x2,      y2 - ry),
-            (x2,      y2 - ry + kappa*ry), (x2 - rx + kappa*rx, y2), (x2 - rx, y2),
-            (x1 + rx, y2),
-            (x1 + rx - kappa*rx, y2), (x1, y2 - ry + kappa*ry), (x1, y2 - ry),
-            (x1,      y1),
-        ]
-        codes = [
-            Path.MOVETO,   Path.LINETO,
-            Path.LINETO,
-            Path.CURVE4,   Path.CURVE4,   Path.CURVE4,
-            Path.LINETO,
-            Path.CURVE4,   Path.CURVE4,   Path.CURVE4,
-            Path.CLOSEPOLY,
-        ]
-        return Path(verts, codes)
-
     for k, h, c in zip(sidebands, max_powers, colors):
-        ax.add_patch(mpatches.PathPatch(
-            rounded_bar_path(k - bar_half, 0, bar_width, h, rx, ry),
-            facecolor=c, edgecolor="none", zorder=3,
-        ))
-
-    stage_label = f"{n_stages} PMs (analytical)" if n_stages == 2 else f"{n_stages} PMs (optimized)"
-    ax.add_patch(mpatches.PathPatch(
-        rounded_bar_path(0, 0, 0, 0, rx, ry),
-        facecolor="#888888", edgecolor="none", label=stage_label,
-    ))
+        ax.bar(k, h, width=bar_width, color=c, edgecolor="black",
+               linewidth=1.5, zorder=3)
 
     ax.hlines(
         max_powers_1pm,
         sidebands - bar_half, sidebands + bar_half,
-        colors="black", linewidths=3.0, linestyles="-", zorder=4,
-        label="1 PM", capstyle="round",
+        colors="black", linewidths=1.5, linestyles="-", zorder=4,
+        label="1 PM",
     )
-    ax.legend(fontsize=8, frameon=False, prop={"family": "Arial"})
+    if max_powers_2pm is not None:
+        ax.hlines(
+            max_powers_2pm,
+            sidebands - bar_half, sidebands + bar_half,
+            colors="black", linewidths=1.5, linestyles="-", zorder=4,
+            label="2 PM",
+        )
+    if not published_plot:
+        ax.legend(fontsize=8, frameon=False, prop={"family": "Arial"})
 
-    ax.set_xlabel(r"Sideband order [dimensionless]", fontsize=10, **font_props)
-    ax.set_ylabel(r"Max conversion efficiency  [dimensionless]", fontsize=10, **font_props)
     ax.set_xticks(sidebands)
     ax.set_xlim(0.5, n_sidebands + 0.5)
-    ax.set_ylim(0, 1.0)
     ax.grid(axis="y", zorder=0)
 
     for spine in ax.spines.values():
         spine.set_linewidth(2)
-    ax.tick_params(axis="both", which="both", direction="in", width=2, labelsize=8)
-    for label in ax.get_xticklabels() + ax.get_yticklabels():
-        label.set_fontfamily("Arial")
+        spine.set_zorder(10)
+
+    if published_plot:
+        ax.set_ylim(0, 1.1)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.tick_params(axis="both", which="both", direction="in", width=2,
+                       labelbottom=False, labelleft=False)
+    else:
+        ax.set_ylim(0, 1.0)
+        ax.set_xlabel(r"Sideband order [dimensionless]", fontsize=10, **font_props)
+        ax.set_ylabel(r"Max conversion efficiency  [dimensionless]", fontsize=10, **font_props)
+        ax.tick_params(axis="both", which="both", direction="in", width=2, labelsize=8)
+        for label in ax.get_xticklabels() + ax.get_yticklabels():
+            label.set_fontfamily("Arial")
 
     return fig, ax
 
@@ -265,12 +254,31 @@ else:
     else:
         out_folder = None
 
+# Compute 2-PM analytical upper bound for reference (only when N_STAGES > 2)
+if N_STAGES > 2:
+    _ref_betas  = np.linspace(0, REF_BETA_MAX, REF_N_POINTS)
+    _n_ref      = np.arange(-REF_N_TERMS, REF_N_TERMS + 1)
+    _rb1, _rb2  = np.meshgrid(_ref_betas, _ref_betas, indexing="ij")
+    _Jn_rb1     = jv(_n_ref, _rb1[..., np.newaxis])
+    max_powers_2pm = np.empty(N_SIDEBANDS)
+    for _i, _k in enumerate(sidebands):
+        _Jm_rb2            = jv(_k - _n_ref, _rb2[..., np.newaxis])
+        max_powers_2pm[_i] = float(np.max(np.sum(np.abs(_Jn_rb1) * np.abs(_Jm_rb2), axis=-1)) ** 2)
+else:
+    max_powers_2pm = None
+
 # ---------------------------------------------------------------------------
 # Plot
 # ---------------------------------------------------------------------------
-fig, ax = _make_plot(sidebands, max_powers, max_powers_1pm, N_STAGES, N_SIDEBANDS)
+fig, ax = _make_plot(sidebands, max_powers, max_powers_1pm, N_SIDEBANDS,
+                     max_powers_2pm=max_powers_2pm, published_plot=PUBLISHED_PLOT)
 
 if SAVE_PATH is not None:
-    fig.savefig(SAVE_PATH, dpi=200)
-    print(f"Figure saved to {SAVE_PATH}")
+    if PUBLISHED_PLOT:
+        import os
+        save_path = os.path.splitext(SAVE_PATH)[0] + ".svg"
+    else:
+        save_path = SAVE_PATH
+    fig.savefig(save_path, dpi=200)
+    print(f"Figure saved to {save_path}")
 plt.show()

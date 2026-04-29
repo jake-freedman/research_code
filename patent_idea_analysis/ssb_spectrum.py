@@ -149,15 +149,17 @@ def compute_optical_spectrum_general(
         if i < len(phi_profiles):
             phi = phi_profiles[i]
             if callable(phi):
-                phase_arr = np.array([phi(int(k)) for k in harmonics], dtype=float)
+                vals = np.array([phi(int(k)) for k in harmonics])
+                transfer_arr = vals if np.iscomplexobj(vals) else np.exp(1j * vals.astype(float))
             else:
-                phase_arr = np.asarray(phi, dtype=float)
-                if phase_arr.shape != harmonics.shape:
+                arr = np.asarray(phi)
+                if arr.shape != harmonics.shape:
                     raise ValueError(
-                        f"phi_profiles[{i}] has length {len(phase_arr)} but "
+                        f"phi_profiles[{i}] has length {len(arr)} but "
                         f"there are {len(harmonics)} harmonics at this stage"
                     )
-            amplitudes = amplitudes * np.exp(1j * phase_arr)
+                transfer_arr = arr if np.iscomplexobj(arr) else np.exp(1j * arr.astype(float))
+            amplitudes = amplitudes * transfer_arr
 
     return harmonics, amplitudes
 
@@ -168,6 +170,8 @@ def plot_phase_profile(
     width_mm: float = 150.0,
     height_mm: float = 60.0,
     ax: plt.Axes = None,
+    color: str = "steelblue",
+    label: str | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Plot the dispersive phase profile phi1_n vs harmonic index n.
@@ -182,6 +186,10 @@ def plot_phase_profile(
         Axes dimensions in mm.
     ax : plt.Axes, optional
         Existing axes to plot into.
+    color : str
+        Line and marker color (default "steelblue").
+    label : str or None
+        Legend label for this profile (default None).
     """
     mm_per_inch = 25.4
     font_props  = {"family": "Arial"}
@@ -206,11 +214,11 @@ def plot_phase_profile(
     else:
         fig = ax.get_figure()
 
-    ax.plot(n_range, phi, color="steelblue", linewidth=1.5)
-    ax.scatter(n_range, phi, color="steelblue", s=30, zorder=3)
+    ax.plot(n_range, phi, color=color, linewidth=1.5, label=label)
+    ax.scatter(n_range, phi, color=color, s=30, zorder=3)
 
     ax.set_xlabel("Harmonic index  $n$", fontsize=10, **font_props)
-    ax.set_ylabel("Phase  $\\phi_n^{(1)}$  (rad)", fontsize=10, **font_props)
+    ax.set_ylabel("Phase  $\\phi_n$  [rad]", fontsize=10, **font_props)
 
     for spine in ax.spines.values():
         spine.set_linewidth(2)
@@ -233,6 +241,7 @@ def plot_optical_spectrum(
     db: bool = False,
     db_floor: float = -60.0,
     ax: plt.Axes = None,
+    top_in: float = 0.15,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Plot the optical power spectrum from compute_optical_spectrum output.
@@ -274,19 +283,18 @@ def plot_optical_spectrum(
     if db:
         y_plot  = 10.0 * np.log10(np.maximum(p_plot, 10 ** (db_floor / 10)))
         y_floor = db_floor
-        y_ceil  = 0.0
-        ylabel  = "Power  (dB)"
+        y_ceil  = 2.0
+        ylabel  = "Conversion efficiency [dB]"
     else:
         y_plot  = p_plot
         y_floor = -0.1
         y_ceil  = 1.1
-        ylabel  = "Power  $|A_k|^2$"
+        ylabel  = "Conversion efficiency"
 
     if ax is None:
         left_in   = 0.65 if db else 0.55
         right_in  = 0.15
         bottom_in = 0.45
-        top_in    = 0.15
         ax_w_in = width_mm / mm_per_inch
         ax_h_in = height_mm / mm_per_inch
         fig_w = left_in + ax_w_in + right_in
@@ -310,9 +318,9 @@ def plot_optical_spectrum(
         ax.vlines(h_plot, y_floor, y_plot, linewidth=2, colors=colors)
     else:
         ax.vlines(h_plot, 0, y_plot, linewidth=2, colors=colors)
-    ax.scatter(h_plot, y_plot, s=80, c=colors, zorder=3, clip_on=False)
+    ax.scatter(h_plot, y_plot, s=80, c=colors, zorder=3, clip_on=True)
 
-    ax.set_xlabel("Harmonic index  $k$  ($\\omega + k\\,\\Omega$)", fontsize=10, **font_props)
+    ax.set_xlabel("Comb index  $k$  ($\\omega + k\\,\\Omega$)", fontsize=10, **font_props)
     ax.set_ylabel(ylabel, fontsize=10, **font_props)
     ax.set_xlim(-n_display - 0.5, n_display + 0.5)
     ax.set_ylim(y_floor, y_ceil)
@@ -329,10 +337,13 @@ def plot_optical_spectrum(
         width=2,
         labelsize=8,
     )
+
+    # Ticks at every other integer starting from 0: ..., -4, -2, 0, 2, 4, ...
+    even_ticks = np.arange(-n_display + (n_display % 2), n_display + 1, 2)
+    ax.set_xticks(even_ticks)
+
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontfamily("Arial")
-
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     return fig, ax
 
@@ -348,6 +359,9 @@ def optimize_ssb(
     x0: np.ndarray | None = None,
     objective: str = "ratio",
     phi_max: float | None = None,
+    disp_n_max: int | None = None,
+    split_harmonics: list[int] | None = None,
+    arbitrary_targets: dict[int, float] | None = None,
 ) -> dict:
     """
     Use basin-hopping to minimise unwanted/wanted harmonic power ratio.
@@ -367,6 +381,16 @@ def optimize_ssb(
         Maximise  |A_wanted|^2  (equivalently minimise  -|A_wanted|^2).
         Ignores unwanted sidebands; useful when raw conversion efficiency
         matters more than spectral purity.
+    "power_split"
+        Split total power equally among split_harmonics while maximising
+        the total power in those sidebands.
+        Minimises  sum_i (P_i - 1/K)^2  where K = len(split_harmonics).
+    "arbitrary"
+        Drive power to match a user-supplied target distribution given by
+        arbitrary_targets (dict mapping harmonic index -> weight).  Weights
+        are normalised internally so their sum equals 1, meaning {1:2, 2:2}
+        and {1:1, 2:1} produce the same 50/50 target.
+        Minimises  sum_i (P_i - target_i)^2  while maximising total split power.
 
     Parameters
     ----------
@@ -388,7 +412,14 @@ def optimize_ssb(
     x0 : np.ndarray or None
         Optional warm-start parameter vector.
     objective : str
-        "ratio" or "power" (default "ratio").
+        "ratio", "power", or "power_split" (default "ratio").
+    split_harmonics : list of int or None
+        Target harmonic indices for the "power_split" objective.
+        Required when objective="power_split"; ignored otherwise.
+    arbitrary_targets : dict of {int: float} or None
+        Mapping of harmonic index -> weight for the "arbitrary" objective.
+        Weights are normalised to sum to 1 before use.
+        Required when objective="arbitrary"; ignored otherwise.
     phi_max : float or None
         Maximum phase shift (rad) applied to any harmonic.
         - Free phase (poly_order=None): upper bound per-harmonic parameter clamped to [0, phi_max].
@@ -417,8 +448,11 @@ def optimize_ssb(
     truncate = n_stages > 2
     stage_ranges = [np.arange(-n_max, n_max + 1)] * n_disp
 
+    # Effective dispersion range: ±disp_n_max (or ±n_max if not set).
+    _disp_lim = disp_n_max if disp_n_max is not None else n_max
+
     if poly_order is None:
-        n_phase    = 2 * n_max + 1
+        n_phase    = 2 * _disp_lim + 1   # only optimise phases within ±disp_n_max
         n_phases   = [n_phase] * n_disp
         _phi_upper = phi_max if phi_max is not None else 2 * np.pi
         phi_lowers = [np.zeros(n_phase)]                * n_disp
@@ -439,21 +473,46 @@ def optimize_ssb(
     # ------------------------------------------------------------------
     def phi_evaluated(x, stage):
         raw = x[phase_offsets[stage] : phase_offsets[stage] + n_phases[stage]]
+        sr  = stage_ranges[stage]
         if poly_order is None:
-            return raw                                       # length matches stage_ranges[stage]
-        return np.polyval(raw[::-1], stage_ranges[stage])   # evaluate polynomial
+            if disp_n_max is not None:
+                # raw covers ±disp_n_max; expand to full ±n_max with zeros
+                full = np.zeros(len(sr))
+                mask = (sr >= -disp_n_max) & (sr <= disp_n_max)
+                full[mask] = raw
+                return full
+            return raw
+        phi = np.polyval(raw[::-1], sr)
+        if disp_n_max is not None:
+            phi[np.abs(sr) > disp_n_max] = 0.0
+        return phi
 
     # ------------------------------------------------------------------
     # Objective
     # ------------------------------------------------------------------
-    if objective not in ("ratio", "power"):
-        raise ValueError(f"objective must be 'ratio' or 'power', got {objective!r}")
+    if objective not in ("ratio", "power", "power_split", "arbitrary"):
+        raise ValueError(f"objective must be 'ratio', 'power', 'power_split', or 'arbitrary', got {objective!r}")
+    if objective == "power_split" and not split_harmonics:
+        raise ValueError("split_harmonics must be provided when objective='power_split'")
+    if objective == "arbitrary" and not arbitrary_targets:
+        raise ValueError("arbitrary_targets must be provided when objective='arbitrary'")
 
     if truncate:
         _harmonics_ref = np.arange(-n_max, n_max + 1)
     else:
         _harmonics_ref = np.arange(-n_stages * n_max, n_stages * n_max + 1)
     _wanted_idx = int(np.where(_harmonics_ref == wanted_harmonic)[0][0])
+
+    if objective == "power_split":
+        _split_idxs = [int(np.where(_harmonics_ref == h)[0][0]) for h in split_harmonics]
+        _K          = len(_split_idxs)
+        _ideal      = 1.0 / _K
+
+    if objective == "arbitrary":
+        _arb_harmonics = list(arbitrary_targets.keys())
+        _raw_weights   = np.array([arbitrary_targets[h] for h in _arb_harmonics], dtype=float)
+        _arb_targets   = _raw_weights / _raw_weights.sum()   # normalise to sum = 1
+        _arb_idxs      = [int(np.where(_harmonics_ref == h)[0][0]) for h in _arb_harmonics]
 
     def _obj(x):
         betas_x  = x[:n_stages]
@@ -464,6 +523,13 @@ def optimize_ssb(
         wanted_power = power[_wanted_idx]
         if objective == "power":
             val = -wanted_power
+        elif objective == "power_split":
+            split_powers = power[_split_idxs]
+            # Minimise deviation from equal share; subtract total to encourage using all power
+            val = float(np.sum((split_powers - _ideal) ** 2)) - float(split_powers.sum())
+        elif objective == "arbitrary":
+            arb_powers = power[_arb_idxs]
+            val = float(np.sum((arb_powers - _arb_targets) ** 2)) - float(arb_powers.sum())
         elif wanted_power < 1e-30:
             val = 1e30
         else:
@@ -531,13 +597,24 @@ def optimize_ssb(
         raw = x_best[phase_offsets[s] : phase_offsets[s] + n_phases[s]].copy()
         phi_params_list.append(raw)
         if poly_order is None:
-            phi_arrs_opt.append(raw.copy())
-            # Callable: index into the free array using stage's harmonic range
-            _lo = int(stage_ranges[s][0])
-            phi_profiles.append(lambda k, _p=raw, _l=_lo: _p[int(k) - _l])
+            sr   = stage_ranges[s]
+            full = np.zeros(len(sr))
+            if disp_n_max is not None:
+                mask = (sr >= -disp_n_max) & (sr <= disp_n_max)
+                full[mask] = raw
+            else:
+                full = raw.copy()
+            phi_arrs_opt.append(full)
+            _lo = int(sr[0])
+            phi_profiles.append(lambda k, _p=full, _l=_lo: _p[int(k) - _l])
         else:
-            phi_arrs_opt.append(np.polyval(raw[::-1], stage_ranges[s]))
-            phi_profiles.append(lambda k, _c=raw: float(np.polyval(_c[::-1], k)))
+            phi_arr = np.polyval(raw[::-1], stage_ranges[s])
+            if disp_n_max is not None:
+                sr = stage_ranges[s]
+                phi_arr[np.abs(sr) > disp_n_max] = 0.0
+            phi_arrs_opt.append(phi_arr)
+            phi_profiles.append(lambda k, _c=raw, _dl=_disp_lim:
+                float(np.polyval(_c[::-1], k)) if abs(k) <= _dl else 0.0)
 
     harmonics, amplitudes = compute_optical_spectrum_general(
         betas_opt, phi_arrs_opt, n_max=n_max, truncate=truncate
