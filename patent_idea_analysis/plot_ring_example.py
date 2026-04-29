@@ -1,8 +1,10 @@
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import numpy as np
 from ring_resonator import RingResonator, power_transmission, phase_transmission
+from graphics import (
+    LIGHTBLUE2, GREEN2, VIOLET2, RED2, ORANGE2, PINK2, DARKGREEN2, DARKBLUE2, TAN2
+)
 
 # ---------------------------------------------------------------------------
 # Ring parameters — each entry is one ring (Q_I, Q_E)
@@ -15,30 +17,25 @@ RINGS_ROW1 = [
     (1e6, 1e6 / 10),
     (1e6, 1e6 / 5),
 ]
-
-RINGS_ROW2 = [
-    (2e6, 2e6 / 40),
-    (2e6, 2e6 / 20),
-    (2e6, 2e6 / 10),
-    (2e6, 2e6 / 5),
-]
+RINGS_ROW1.reverse()
 
 # ---------------------------------------------------------------------------
 # Plot settings
 # ---------------------------------------------------------------------------
-F_SPAN    = 15e9     # frequency span [Hz]; None = 10× narrowest linewidth across all rings
+F_SPAN    = 40e9     # frequency span [Hz]; None = 10× narrowest linewidth across all rings
 N_POINTS  = 2000
-AX_W_MM   = 70.0
-AX_H_MM   = 30.0
-V_GAP_IN  = 0.35    # vertical gap between rows [in]
+AX_W_MM   = 80.0
+AX_H_MM   = 46.0
 POWER_DB  = False
 DB_FLOOR  = -10.0
 PHASE_MIN = -2 * np.pi
 
+PUBLISHED_PLOT = False   # if True: strip labels/ticks/legend and save as .svg
+SAVE_PATH      = None # r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\rings.svg"    # e.g. r"C:\path\to\figure.png"; None = don't save
+
 # ---------------------------------------------------------------------------
 
-LIGHTBLUE2 = '#b2cbf2'
-GREEN2      = '#93C572'
+_RING_COLORS = [LIGHTBLUE2, GREEN2, VIOLET2, PINK2, ORANGE2, PINK2, DARKGREEN2, DARKBLUE2]
 
 matplotlib.rcParams["font.family"] = "Arial"
 mm_per_inch = 25.4
@@ -46,126 +43,123 @@ fp = {"family": "Arial"}
 axis_label_fontsize = 10
 
 
-def _shade_palette(hex_color: str, n: int):
-    """Return n visually distinct colors centred on hex_color.
-
-    Sweeps hue ±0.07, saturation 0.35→1.0, value 1.0→0.50 across the n steps.
-    """
-    if n == 1:
-        return [hex_color]
-    r, g, b = mcolors.to_rgb(hex_color)
-    h, _, _ = mcolors.rgb_to_hsv((r, g, b))
-    hue_half = 0.07
-    return [
-        mcolors.hsv_to_rgb((
-            (h - hue_half + 2 * hue_half * i / (n - 1)) % 1.0,
-            0.35 + 0.65 * i / (n - 1),
-            1.0  - 0.50 * i / (n - 1),
-        ))
-        for i in range(n)
-    ]
-
-
 def _build_rings(specs):
     return [RingResonator.from_Q(f_0=F_0, Q_i=qi, Q_e=qe) for qi, qe in specs]
 
 
-rings1 = _build_rings(RINGS_ROW1)
-rings2 = _build_rings(RINGS_ROW2)
+rings = _build_rings(RINGS_ROW1)
 
-for label, rings in [("Row 1", rings1), ("Row 2", rings2)]:
-    for i, r in enumerate(rings):
-        print(f"{label} Ring {i+1}: Q_i={r.Q_i:.2e}  Q_e={r.Q_e:.2e}  "
-              f"linewidth={r.linewidth_hz:.3e} Hz  Q_total={r.Q_total:.3e}")
+for i, r in enumerate(rings):
+    print(f"Ring {i+1}: Q_i={r.Q_i:.2e}  Q_e={r.Q_e:.2e}  "
+          f"linewidth={r.linewidth_hz:.3e} Hz  Q_total={r.Q_total:.3e}")
 
-all_rings = rings1 + rings2
 if F_SPAN is None:
-    f_span = 10 * min(r.linewidth_hz for r in all_rings)
+    f_span = 10 * min(r.linewidth_hz for r in rings)
 else:
     f_span = F_SPAN
 
 f            = np.linspace(F_0 - f_span / 2, F_0 + f_span / 2, N_POINTS)
 detuning_ghz = (f - F_0) / 1e9
 
-colors1 = _shade_palette(LIGHTBLUE2, len(rings1))
-colors2 = _shade_palette(GREEN2,     len(rings2))
+colors = [_RING_COLORS[i % len(_RING_COLORS)] for i in range(len(rings))]
 
 # ---------------------------------------------------------------------------
-# Build figure: 2 rows × 2 cols (power | phase)
+# Build figures: one for power, one for phase
 # ---------------------------------------------------------------------------
-left_in, mid_in, right_in = 0.60, 0.55, 0.20
-bottom_in, top_in          = 0.45, 0.25
+left_in, right_in = 0.60, 0.20
+bottom_in, top_in = 0.45, 0.25
 
 ax_w_in = AX_W_MM / mm_per_inch
 ax_h_in = AX_H_MM / mm_per_inch
-fig_w   = left_in + ax_w_in + mid_in + ax_w_in + right_in
-fig_h   = bottom_in + 2 * ax_h_in + V_GAP_IN + top_in
+fig_w   = left_in + ax_w_in + right_in
+fig_h   = bottom_in + ax_h_in + top_in
 
-fig = plt.figure(figsize=(fig_w, fig_h))
+def _make_fig():
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    ax  = fig.add_axes([left_in / fig_w, bottom_in / fig_h,
+                        ax_w_in / fig_w, ax_h_in  / fig_h])
+    return fig, ax
 
-def _add_row_axes(row_idx):
-    """row_idx 0 = top, 1 = bottom."""
-    y0 = (bottom_in + (1 - row_idx) * (ax_h_in + V_GAP_IN)) / fig_h
-    ax_p = fig.add_axes([left_in / fig_w,                          y0,
-                         ax_w_in / fig_w, ax_h_in / fig_h])
-    ax_ph = fig.add_axes([(left_in + ax_w_in + mid_in) / fig_w,   y0,
-                          ax_w_in / fig_w, ax_h_in / fig_h])
-    return ax_p, ax_ph
+fig_pwr, ax_pwr = _make_fig()
+fig_phi, ax_phi = _make_fig()
 
-ax_pwr1, ax_phi1 = _add_row_axes(0)
-ax_pwr2, ax_phi2 = _add_row_axes(1)
+for ring, color in zip(rings, colors):
+    ratio = ring.Q_i / ring.Q_e
+    lbl   = f"$Q_i/Q_e$ = {ratio:.0f}"
+    pwr   = power_transmission(ring, f)
+    phi   = phase_transmission(ring, f)
 
-def _plot_row(ax_pwr, ax_phi, rings, colors):
-    for ring, color in zip(rings, colors):
-        ratio = ring.Q_i / ring.Q_e
-        lbl = f"$Q_i/Q_e$ = {ratio:.0f}"
-        pwr = power_transmission(ring, f)
-        phi = phase_transmission(ring, f)
+    if POWER_DB:
+        pwr_plot = 10 * np.log10(np.maximum(pwr, 10 ** (DB_FLOOR / 10)))
+    else:
+        pwr_plot = pwr
 
-        if POWER_DB:
-            pwr_plot = 10 * np.log10(np.maximum(pwr, 10 ** (DB_FLOOR / 10)))
-        else:
-            pwr_plot = pwr
+    if PHASE_MIN is not None:
+        phi = (phi - PHASE_MIN) % (2 * np.pi) + PHASE_MIN
 
-        if PHASE_MIN is not None:
-            phi = (phi - PHASE_MIN) % (2 * np.pi) + PHASE_MIN
-
-        ax_pwr.plot(detuning_ghz, pwr_plot, color=color, linewidth=1.5, label=lbl)
-        ax_phi.plot(detuning_ghz, phi,      color=color, linewidth=1.5, label=lbl)
-
-_plot_row(ax_pwr1, ax_phi1, rings1, colors1)
-_plot_row(ax_pwr2, ax_phi2, rings2, colors2)
+    ax_pwr.plot(detuning_ghz, pwr_plot,    color=color, linewidth=2, label=lbl)
+    ax_phi.plot(detuning_ghz, phi / np.pi, color=color, linewidth=2, label=lbl)
 
 # ---------------------------------------------------------------------------
 # Style axes
 # ---------------------------------------------------------------------------
 pwr_ylabel = "Power transmission [dB]" if POWER_DB else r"Power transmission $|t|^2$"
-pwr_ylim   = (DB_FLOOR - 1, 1) if POWER_DB else (-0.05, 1.05)
+pwr_ylim   = (DB_FLOOR - 1, 1) if POWER_DB else (0.395, 1.05)
 
-for row_idx, (ax_pwr, ax_phi) in enumerate([(ax_pwr1, ax_phi1), (ax_pwr2, ax_phi2)]):
-    is_bottom = (row_idx == 1)
+ax_pwr.set_ylabel(pwr_ylabel, fontsize=axis_label_fontsize, **fp)
+ax_pwr.set_ylim(*pwr_ylim)
+ax_pwr.set_xlim(detuning_ghz[0], detuning_ghz[-1])
+ax_pwr.set_xlabel(r"Detuning $\Delta f$ [GHz]", fontsize=axis_label_fontsize, **fp)
+ax_pwr.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=3))
+ax_pwr.legend(fontsize=8, frameon=False)
 
-    ax_pwr.set_ylabel(pwr_ylabel, fontsize=axis_label_fontsize, **fp)
-    ax_pwr.set_ylim(*pwr_ylim)
-    ax_pwr.set_xlim(detuning_ghz[0], detuning_ghz[-1])
+ax_phi.set_ylabel(r"Phase $\angle t$ [$\pi$]", fontsize=axis_label_fontsize, **fp)
+ax_phi.set_xlim(detuning_ghz[0], detuning_ghz[-1])
+ax_phi.set_xlabel(r"Detuning $\Delta f$ [GHz]", fontsize=axis_label_fontsize, **fp)
+ax_phi.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(1.0))
+ax_phi.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(
+    lambda v, _: f"{int(v):d}" if v == int(v) else f"{v:.1f}"
+))
+if PHASE_MIN is not None:
+    ax_phi.set_ylim((PHASE_MIN - 0.3) / np.pi, (PHASE_MIN + 2 * np.pi + 0.3) / np.pi)
 
-    ax_phi.set_ylabel(r"Phase $\angle t$ [rad]", fontsize=axis_label_fontsize, **fp)
-    ax_phi.set_xlim(detuning_ghz[0], detuning_ghz[-1])
-    if PHASE_MIN is not None:
-        ax_phi.set_ylim(PHASE_MIN, PHASE_MIN + 2 * np.pi)
+for ax in (ax_pwr, ax_phi):
+    ax.set_axisbelow(False)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2)
+        spine.set_zorder(10)
+    ax.tick_params(axis="both", which="both", direction="in", width=2, labelsize=8)
+    for lbl in ax.get_xticklabels() + ax.get_yticklabels():
+        lbl.set_fontfamily("Arial")
 
-    if is_bottom:
-        ax_pwr.set_xlabel(r"Detuning $\Delta f$ [GHz]", fontsize=axis_label_fontsize, **fp)
-        ax_phi.set_xlabel(r"Detuning $\Delta f$ [GHz]", fontsize=axis_label_fontsize, **fp)
-
+# ---------------------------------------------------------------------------
+# Save / published plot
+# ---------------------------------------------------------------------------
+if PUBLISHED_PLOT:
     for ax in (ax_pwr, ax_phi):
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.tick_params(axis="both", which="both", direction="in", width=2,
+                       labelbottom=False, labelleft=False)
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
         for spine in ax.spines.values():
             spine.set_linewidth(2)
-        ax.tick_params(axis="both", which="both", direction="in", width=2, labelsize=8)
-        for lbl in ax.get_xticklabels() + ax.get_yticklabels():
-            lbl.set_fontfamily("Arial")
+            spine.set_zorder(100)
 
-ax_pwr1.legend(fontsize=8, frameon=False)
-ax_pwr2.legend(fontsize=8, frameon=False)
+    if SAVE_PATH:
+        base = SAVE_PATH.rsplit(".", 1)[0] if "." in SAVE_PATH.split("\\")[-1] else SAVE_PATH
+        for fig, tag in [(fig_pwr, "pwr"), (fig_phi, "phi")]:
+            path = f"{base}_{tag}.svg"
+            fig.savefig(path)
+            print(f"Saved {path}")
+elif SAVE_PATH:
+    base = SAVE_PATH.rsplit(".", 1)[0] if "." in SAVE_PATH.split("\\")[-1] else SAVE_PATH
+    ext  = SAVE_PATH.rsplit(".", 1)[-1] if "." in SAVE_PATH.split("\\")[-1] else "png"
+    for fig, tag in [(fig_pwr, "pwr"), (fig_phi, "phi")]:
+        path = f"{base}_{tag}.{ext}"
+        fig.savefig(path, dpi=200)
+        print(f"Saved {path}")
 
 plt.show()

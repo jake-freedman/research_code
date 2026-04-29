@@ -31,11 +31,11 @@ from ring_optimizer import (
 # ---------------------------------------------------------------------------
 
 N_STAGES        = 3          # number of phase modulators
-N_RINGS         = 9          # ring resonators per dispersion stage
+N_RINGS         = 17          # ring resonators per dispersion stage
 BETA_MAX        = 5.0        # maximum modulation depth [rad]
 
-Q_I             = 2e6        # intrinsic Q factor (all rings, fixed)
-Q_E             = Q_I / 30   # external Q factor (all rings, fixed)
+Q_I             = 1e6        # intrinsic Q factor (all rings, fixed)
+Q_E             = Q_I / 20   # external Q factor (all rings, fixed)
 
 F_CARRIER       = 193e12     # optical carrier frequency [Hz]
 F_MOD           = 50e9       # RF modulation frequency [Hz]
@@ -43,19 +43,20 @@ F_RING_BOUND    = F_MOD  # per-ring half-range; ring j centred at F_CARRIER + k*
                          # is bounded to [centre - F_RING_BOUND, centre + F_RING_BOUND]
 
 N_MAX           = 20         # harmonic truncation order per PM stage
-N_ITER          = 10000        # basin-hopping iterations
-SEED            = 1          # integer for reproducibility, or None
+N_ITER          = 1000        # basin-hopping iterations
+SEED            = 2          # integer for reproducibility, or None
 
 OBJECTIVE       = "power"    # "power"       : maximise power at WANTED_HARMONIC
                              # "ratio"       : minimise unwanted/wanted ratio
                              # "power_split" : equal split among POWER_SPLIT_HARMONICS
                              # "arbitrary"   : match ARBITRARY_TARGETS
 
-WANTED_HARMONIC       = 2
+WANTED_HARMONIC       = 4
+
 POWER_SPLIT_HARMONICS = [-3, 3]
 ARBITRARY_TARGETS     = {1: 0.5, 3: 0.25, 5: 0.25}
 
-OUT_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
+OUT_DIR = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\17sidebands_ssbm_ring"
 
 # ---------------------------------------------------------------------------
 

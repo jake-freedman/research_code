@@ -21,8 +21,8 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-FOLDER_ROW1 = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials\arbitrary_test_20260425_200212"
-FOLDER_ROW2 = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials\arbitrary_test_20260425_203706"
+FOLDER_ROW1 = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials\arbitrary_test_20260429_154003"
+FOLDER_ROW2 = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials\arbitrary_test_20260429_150528"
 
 ROW1_LABEL = "2 stages"
 ROW2_LABEL = "4 stages"
@@ -36,10 +36,10 @@ SHOW_ZERO_TARGETS = True           # if True, draw open black circles at zero fo
 USE_DB   = False
 DB_FLOOR = -40.0
 Y_MAX_DB = 2.0
-Y_CEIL   = 0.2
+Y_CEIL   = 0.5
 Y_FLOOR  = -0.01
 
-SAVE_DIR  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+SAVE_DIR  = None # r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media"
 SAVE_NAME = "arbitrary_grid.svg"
 SAVE_DPI  = 200
 

@@ -27,15 +27,15 @@ from ring_approximation import (
 # ---------------------------------------------------------------------------
 
 # Path to a folder produced by run_optimization.py (contains config.json etc.)
-OPT_FOLDER = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm\20260426_160507"
+OPT_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260429_155817"
 
 # Ring Q factors (same for every ring in every stage)
-Q_I = 2e6   # intrinsic Q
-Q_E = Q_I / 30   # external (waveguide) Q — set Q_E < Q_I for overcoupled rings
+Q_I = 5e6   # intrinsic Q
+Q_E = Q_I / 80   # external (waveguide) Q — set Q_E < Q_I for overcoupled rings
 
 # Sideband / carrier geometry
 F_CARRIER = 193e12   # optical carrier frequency [Hz]
-F_MOD     = 50e9     # modulation frequency [Hz]
+F_MOD     = 100e9     # modulation frequency [Hz]
 
 # Ring solver search radius [Hz] — must be >> ring linewidth
 F_SEARCH_RADIUS = F_MOD

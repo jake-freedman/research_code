@@ -28,14 +28,14 @@ from ssb_spectrum import optimize_ssb, plot_optical_spectrum
 # ---------------------------------------------------------------------------
 # Configuration — edit these values before running
 # ---------------------------------------------------------------------------
-WANTED_HARMONIC = 2       # target sideband index
+WANTED_HARMONIC = 4       # target sideband index
 BETA_MAX        = 5.0    # maximum allowed modulation depth (rad)
 N_MAX           = 20      # harmonic truncation order per PM stage
 N_STAGES        = 3       # number of phase modulators
 POLY_ORDER      = None    # None = fully free phase; integer = polynomial order
 N_ITER          = 100     # basin-hopping iterations
 SEED            = 1    # integer for reproducibility, or None for random
-OBJECTIVE       = "power" # "ratio"       : minimise unwanted/wanted power ratio
+OBJECTIVE       = "arbitrary" # "ratio"       : minimise unwanted/wanted power ratio
                           # "power"       : maximise power at wanted harmonic
                           # "power_split" : split power equally among POWER_SPLIT_HARMONICS
                           # "arbitrary"   : match target power fractions in ARBITRARY_TARGETS
@@ -49,7 +49,7 @@ DISP_N_MAX      = 4    # number of sidebands that can receive non-zero dispersio
                           # None = all harmonics up to N_MAX are free.
 
 # Full path to the folder where timestamped result sub-folders will be saved.
-OUT_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm"
+OUT_DIR = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
 
 # Set to a previous result folder path to warm-start, or None to start fresh.
 RESUME = None   # e.g. r"C:\path\to\results\20260417_153012"

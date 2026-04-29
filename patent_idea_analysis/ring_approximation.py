@@ -417,9 +417,11 @@ def plot_combined_ring_transmission(
     bottom_in: float = 0.45,
     row_gap_in: float = 0.35,
     top_in: float = 0.25,
-    phase_min: float | None = -np.pi,
+    phase_min: float | None = -2*np.pi,
     power_db: bool = False,
     db_floor: float = -10.0,
+    phase_xlim: tuple = (),
+    phase_gamma_e_span: float = 10.0,
 ) -> matplotlib.figure.Figure:
     """Plot the combined ring transmission for each dispersion stage.
 
@@ -428,16 +430,21 @@ def plot_combined_ring_transmission(
       Row 1: phase transmission arg(T(f))
 
     Each column corresponds to one dispersion stage's combined ring bank.
-    The x-axis is detuning from f_carrier in GHz.  Vertical grey dashed lines
-    mark the sideband positions f_carrier ± k·f_mod for k = 0 … n_max.
+    The x-axis is combline index (detuning / f_mod).  Vertical grey dashed lines
+    mark the sideband positions at integer combline indices k = -n_max … n_max.
     """
     n_stages = len(rings_per_stage)
     n_cols   = n_stages
 
-    # Frequency sweep: cover all sidebands ±n_max with 20 % margin
-    half_span = (n_max + 1) * f_mod
-    f_arr     = np.linspace(f_carrier - half_span, f_carrier + half_span, n_points)
-    det_ghz   = (f_arr - f_carrier) / 1e9
+    # Sweep must cover all sideband positions AND each ring's ±phase_gamma_e_span*gamma_e
+    # window so that the full phase transition of every ring is visible.
+    all_rings_flat = [r for stage in rings_per_stage for r in stage]
+    window_hz      = {id(r): phase_gamma_e_span * r.gamma_e / (2 * np.pi) for r in all_rings_flat}
+    f_lo      = min(r.f_0 - window_hz[id(r)] for r in all_rings_flat)
+    f_hi      = max(r.f_0 + window_hz[id(r)] for r in all_rings_flat)
+    half_span = max(f_carrier - f_lo, f_hi - f_carrier, (n_max + 1) * f_mod)
+    f_arr      = np.linspace(f_carrier - half_span, f_carrier + half_span, n_points)
+    comb_index = (f_arr - f_carrier) / f_mod
 
     def _combined_transfer(stage_rings: list[RingResonator]) -> np.ndarray:
         t = np.ones(len(f_arr), dtype=complex)
@@ -456,8 +463,8 @@ def plot_combined_ring_transmission(
     fig = plt.figure(figsize=(fig_w, fig_h))
     fp  = {"family": "Arial"}
 
-    # Sideband marker x-positions [GHz]
-    sb_detunings = np.arange(-n_max, n_max + 1) * f_mod / 1e9
+    # Sideband marker positions in combline-index units (integers)
+    sb_detunings = np.arange(-n_max, n_max + 1, dtype=float)
 
     def _x0(col):
         return (left_in + col * (ax_w_in + mid_in)) / fig_w
@@ -482,39 +489,60 @@ def plot_combined_ring_transmission(
             pwr_ylim  = (-0.05, 1.05)
             pwr_label = "$|T|^2$"
 
-        ax_pwr.plot(det_ghz, pwr_plot, color=BLUE2, linewidth=1.0)
+        ax_pwr.plot(comb_index, pwr_plot, color=BLUE2, linewidth=1.0)
         for sd in sb_detunings:
             ax_pwr.axvline(sd, color="gray", linewidth=0.5, linestyle="--", zorder=0)
-        ax_pwr.set_xlim(det_ghz[0], det_ghz[-1])
+        ax_pwr.set_xlim(comb_index[0], comb_index[-1])
         ax_pwr.set_ylim(*pwr_ylim)
         ax_pwr.set_title(label, fontsize=axis_label_fontsize, fontfamily="Arial")
         if ci == 0:
             ax_pwr.set_ylabel(pwr_label, fontsize=axis_label_fontsize, **fp)
 
-        # ---- Phase panel (bottom row) ----
+        # ---- Phase panel (bottom row): one line per ring ----
         ax_phi = fig.add_axes([_x0(ci), _y0(1), ax_w_in / fig_w, ax_h_in / fig_h])
+
+        stage_rings = rings_per_stage[ci]
+        n_rings_stage = len(stage_rings)
+        cmap_phi = matplotlib.colormaps["YlGn"]
+        # Sample colors from the mid-to-dark range of the colormap
+        ring_colors = [cmap_phi(0.4 + 0.5 * j / max(n_rings_stage - 1, 1))
+                       for j in range(n_rings_stage)]
+
+        all_phases = []
+        for ring, rcolor in zip(stage_rings, ring_colors):
+            t_ring   = field_transmission_coefficient(ring, f_arr)
+            phi_ring = np.angle(t_ring)
+            if phase_min is not None:
+                phi_ring = ((phi_ring - phase_min) % (2 * np.pi)) + phase_min
+            all_phases.append(phi_ring)
+            # Restrict each ring's curve to ±phase_gamma_e_span * gamma_e around its resonance
+            mask = np.abs(f_arr - ring.f_0) <= window_hz[id(ring)]
+            ax_phi.plot(comb_index[mask], phi_ring[mask], color=rcolor, linewidth=1.0)
+
         if phase_min is not None:
-            phase     = ((phase - phase_min) % (2 * np.pi)) + phase_min
             phase_max = phase_min + 2 * np.pi
             tick_vals = np.arange(phase_min, phase_max + 1e-9, np.pi / 2)
             tick_lbls = [_phase_tick_label(v) for v in tick_vals]
             pad = 0.05
         else:
-            phase_min_ax, phase_max = phase.min(), phase.max()
+            all_concat = np.concatenate(all_phases)
+            phase_min_ax, phase_max = all_concat.min(), all_concat.max()
             tick_vals = tick_lbls = None
             pad = 0.1
 
-        ax_phi.plot(det_ghz, phase, color=DARKGREEN2, linewidth=1.0)
         for sd in sb_detunings:
             ax_phi.axvline(sd, color="gray", linewidth=0.5, linestyle="--", zorder=0)
-        ax_phi.set_xlim(det_ghz[0], det_ghz[-1])
+        if phase_xlim:
+            ax_phi.set_xlim(phase_xlim[0], phase_xlim[1])
+        else:
+            ax_phi.set_xlim(comb_index[0], comb_index[-1])
         if phase_min is not None:
             ax_phi.set_ylim(phase_min - pad, phase_max + pad)
             ax_phi.set_yticks(tick_vals)
             ax_phi.set_yticklabels(tick_lbls, fontsize=tick_label_fontsize)
         else:
-            ax_phi.set_ylim(phase_min_ax - pad, phase_max + pad)
-        ax_phi.set_xlabel("Detuning [GHz]", fontsize=axis_label_fontsize, **fp)
+            ax_phi.set_ylim(phase_min_ax - pad, phase_max + pad)  # type: ignore[possibly-undefined]
+        ax_phi.set_xlabel("Combline index", fontsize=axis_label_fontsize, **fp)
         if ci == 0:
             ax_phi.set_ylabel("Phase [rad]", fontsize=axis_label_fontsize, **fp)
 

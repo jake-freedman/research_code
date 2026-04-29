@@ -29,16 +29,16 @@ from graphics import (
 # ---------------------------------------------------------------------------
 # Paste the path to the result folder here
 # ---------------------------------------------------------------------------
-RESULT_FOLDER  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\2stage_ssbm\20260425_152122"
+RESULT_FOLDER  = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260429_155817"
 USE_DB         = True   # set True to show spectrum in dB
 DB_FLOOR       = -60.0  # dB floor [only used when USE_DB = True]
 PHASE_MOD_2PI  = True   # set True to wrap dispersion phase profiles to [0, 2*pi)
 MINIMIZE_PHASE     = False  # set True to also show the minimum-total-phase equivalent profile
 PLOT_INTERMEDIATE  = True   # set True to plot spectrum after each PM stage
-N_DISPLAY          = 8     # number of harmonic orders shown on each side of spectrum plots
-SAVE_DIR       = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media" # r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\harmonic6"   # set to a folder path to save all figures as PNGs, e.g. r"C:\path\to\figures"
+N_DISPLAY          = 6     # number of harmonic orders shown on each side of spectrum plots
+SAVE_DIR       = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media" # r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\harmonic6"   # set to a folder path to save all figures as PNGs, e.g. r"C:\path\to\figures"
 SAVE_DPI       = 150    # resolution for saved figures
-PUBLISHED_PLOT = True  # if True: strip all labels/ticks/legend/title from spectrum, save as .svg
+PUBLISHED_PLOT = False  # if True: strip all labels/ticks/legend/title from spectrum, save as .svg
 # ---------------------------------------------------------------------------
 
 # Colors (from graphics.py "2" palette) cycled across dispersion stages
@@ -422,6 +422,7 @@ elif IS_RING_OPT:
         n_max=n_rings // 2,
         power_db=USE_DB,
         db_floor=-5,
+        phase_xlim=(-5, 5)
     )
     _save(fig_rings, "ring_transmission")
 

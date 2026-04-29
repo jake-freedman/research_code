@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ssb_spectrum import optimize_ssb, plot_optical_spectrum
+from ring_optimizer import optimize_ring_spectrum
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -50,10 +51,21 @@ DISP_N_MAX = 8
 PHI_MAX    = None
 SEED       = 42           # controls target generation and per-test optimizer seeds; None = random
 
+# --- Ring-resonator optimizer (only used when USE_RING_OPT = True) ---
+# When True, optimize_ring_spectrum is called directly instead of optimize_ssb.
+# The saved results.json is compatible with plot_arbitrary_grid.py.
+USE_RING_OPT     = True
+RING_N_RINGS     = 9          # ring resonators per dispersion stage
+RING_Q_I         = 2e6         # intrinsic Q factor of every ring
+RING_Q_E         = 1e6 / 40   # external Q factor (overcoupled: Q_E < Q_I)
+RING_F_CARRIER   = 193e12      # optical carrier frequency [Hz]
+RING_F_MOD       = 50e9        # modulation frequency [Hz]
+RING_F_RING_BOUND = 50e9       # per-ring search half-width [Hz]
+
 USE_DB   = True
 DB_FLOOR = -40.0
 
-OUT_DIR    = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials"
+OUT_DIR    = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials"
 BATCH_NAME = ""           # "" = auto-generate as arbitrary_test_<timestamp>
 
 # Set to a previous batch folder to reuse its randomly generated targets.
@@ -115,6 +127,13 @@ config_data = dict(
     phi_max        = PHI_MAX,
     seed           = SEED,
     resumed_from   = RESUME_FROM,
+    use_ring_opt      = USE_RING_OPT,
+    ring_n_rings      = RING_N_RINGS      if USE_RING_OPT else None,
+    ring_Q_i          = RING_Q_I          if USE_RING_OPT else None,
+    ring_Q_e          = RING_Q_E          if USE_RING_OPT else None,
+    ring_f_carrier    = RING_F_CARRIER    if USE_RING_OPT else None,
+    ring_f_mod        = RING_F_MOD        if USE_RING_OPT else None,
+    ring_f_ring_bound = RING_F_RING_BOUND if USE_RING_OPT else None,
 )
 with open(os.path.join(batch_folder, "config.json"), "w") as f:
     json.dump(config_data, f, indent=2)
@@ -153,6 +172,8 @@ def _overlay_targets(ax, norm_tgt: dict):
                 linestyle="--", color=color, linewidth=1.5, zorder=5)
 
 
+
+
 # ---------------------------------------------------------------------------
 # Optimization loop
 # ---------------------------------------------------------------------------
@@ -174,27 +195,55 @@ for i, target in enumerate(targets):
     print(f"  [{i+1}/{len(targets)}]  harmonics={harmonics}  "
           f"weights={[f'{w:.3f}' for w in weights]}", end="", flush=True)
 
-    res = optimize_ssb(
-        wanted_harmonic   = wanted_h,
-        beta_max          = BETA_MAX,
-        n_max             = N_MAX,
-        n_stages          = N_STAGES,
-        poly_order        = POLY_ORDER,
-        n_iter            = N_ITER,
-        seed              = opt_seed,
-        objective         = "arbitrary",
-        phi_max           = PHI_MAX,
-        disp_n_max        = DISP_N_MAX,
-        arbitrary_targets = arb_dict,
-    )
+    if USE_RING_OPT:
+        res = optimize_ring_spectrum(
+            n_stages          = N_STAGES,
+            n_rings           = RING_N_RINGS,
+            beta_max          = BETA_MAX,
+            Q_i               = RING_Q_I,
+            Q_e               = RING_Q_E,
+            f_carrier         = RING_F_CARRIER,
+            f_mod             = RING_F_MOD,
+            f_ring_bound      = RING_F_RING_BOUND,
+            n_max             = N_MAX,
+            objective         = "arbitrary",
+            n_iter            = N_ITER,
+            seed              = opt_seed,
+            wanted_harmonic   = wanted_h,
+            arbitrary_targets = arb_dict,
+        )
+        spec_harmonics  = res["harmonics"]
+        spec_amplitudes = res["amplitudes"]
+        f0_per_stage    = res["f0_per_stage"]
+        betas_to_save   = [float(b) for b in res["betas"]]
+        phi_params_to_save = []
+    else:
+        res = optimize_ssb(
+            wanted_harmonic   = wanted_h,
+            beta_max          = BETA_MAX,
+            n_max             = N_MAX,
+            n_stages          = N_STAGES,
+            poly_order        = POLY_ORDER,
+            n_iter            = N_ITER,
+            seed              = opt_seed,
+            objective         = "arbitrary",
+            phi_max           = PHI_MAX,
+            disp_n_max        = DISP_N_MAX,
+            arbitrary_targets = arb_dict,
+        )
+        spec_harmonics     = res["harmonics"]
+        spec_amplitudes    = res["amplitudes"]
+        f0_per_stage       = None
+        betas_to_save      = [float(b) for b in res["betas"]]
+        phi_params_to_save = [p.tolist() for p in res["phi_params_list"]]
 
-    power   = np.abs(res["amplitudes"]) ** 2
+    power   = np.abs(spec_amplitudes) ** 2
     total_w = sum(weights)
     norm_tgt = {h: w / total_w for h, w in zip(harmonics, weights)}
 
     achieved = {}
     for h in harmonics:
-        idx = np.where(res["harmonics"] == h)[0]
+        idx = np.where(spec_harmonics == h)[0]
         achieved[h] = float(power[idx[0]]) if len(idx) else 0.0
 
     total_achieved = float(sum(achieved.values()))
@@ -205,7 +254,7 @@ for i, target in enumerate(targets):
 
     # Per-test spectrum figure
     fig_spec, ax_spec = plot_optical_spectrum(
-        res["harmonics"], res["amplitudes"],
+        spec_harmonics, spec_amplitudes,
         db=USE_DB, db_floor=DB_FLOOR,
         width_mm=80, n_display=N_DISPLAY,
     )
@@ -221,11 +270,11 @@ for i, target in enumerate(targets):
     # Save spectrum powers up to N_MAX so downstream plot scripts can choose their own display range
     spectrum_powers = {
         str(int(h)): float(p)
-        for h, p in zip(res["harmonics"], power)
+        for h, p in zip(spec_harmonics, power)
         if abs(h) <= N_MAX
     }
 
-    all_results.append(dict(
+    record = dict(
         test_idx             = i,
         target_harmonics     = harmonics,
         target_weights_raw   = weights,
@@ -233,10 +282,13 @@ for i, target in enumerate(targets):
         achieved_powers      = {str(h): v for h, v in achieved.items()},
         total_achieved_power = total_achieved,
         split_mse            = split_mse,
-        betas                = [float(b) for b in res["betas"]],
-        phi_params           = [p.tolist() for p in res["phi_params_list"]],
+        betas                = betas_to_save,
+        phi_params           = phi_params_to_save,
         spectrum_powers      = spectrum_powers,
-    ))
+    )
+    if f0_per_stage is not None:
+        record["ring_f0_per_stage"] = f0_per_stage
+    all_results.append(record)
 
 with open(os.path.join(batch_folder, "results.json"), "w") as f:
     json.dump(all_results, f, indent=2)
