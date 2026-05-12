@@ -46,7 +46,7 @@ BETA_MAX   = 5.0
 N_MAX      = 20
 N_STAGES   = 4
 POLY_ORDER = None
-N_ITER     = 100
+N_ITER     = 1000
 DISP_N_MAX = 8
 PHI_MAX    = None
 SEED       = 42           # controls target generation and per-test optimizer seeds; None = random
@@ -65,7 +65,7 @@ RING_F_RING_BOUND = 50e9       # per-ring search half-width [Hz]
 USE_DB   = True
 DB_FLOOR = -40.0
 
-OUT_DIR    = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials"
+OUT_DIR    = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\arb_test_with_6_sidebands_10_trials"
 BATCH_NAME = ""           # "" = auto-generate as arbitrary_test_<timestamp>
 
 # Set to a previous batch folder to reuse its randomly generated targets.

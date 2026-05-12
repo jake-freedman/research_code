@@ -32,7 +32,7 @@ from datetime import datetime
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from scipy.optimize import basinhopping
+from scipy.optimize import basinhopping, minimize
 
 from ring_resonator import RingResonator, field_transmission_coefficient
 from ssb_spectrum import compute_optical_spectrum_general
@@ -91,6 +91,7 @@ def optimize_ring_spectrum(
     wanted_harmonic: int = 1,
     split_harmonics: list[int] | None = None,
     arbitrary_targets: dict[int, float] | None = None,
+    local_only: bool = False,
 ) -> dict:
     """Optimise ring resonance frequencies and modulation depths.
 
@@ -109,12 +110,14 @@ def optimize_ring_spectrum(
                        [centre - f_ring_bound, centre + f_ring_bound]
     n_max            : harmonic truncation order per PM stage
     objective        : "power" | "ratio" | "power_split" | "arbitrary"
-    n_iter           : basin-hopping iterations
+    n_iter           : basin-hopping iterations (ignored when local_only=True)
     seed             : RNG seed (int) or None
     x0               : initial parameter vector; None = random
     wanted_harmonic  : target sideband index (used by "power" and "ratio")
     split_harmonics  : harmonic indices for "power_split"
     arbitrary_targets: {harmonic: weight} for "arbitrary"
+    local_only       : if True, run a single L-BFGS-B minimization from x0
+                       instead of basin-hopping (useful for warm-started runs)
 
     Returns
     -------
@@ -216,24 +219,27 @@ def optimize_ring_spectrum(
         x0 = np.concatenate([rng.uniform(0.0, beta_max, n_stages), f0_init])
 
     # ------------------------------------------------------------------
-    # Basin-hopping
+    # Optimize
     # ------------------------------------------------------------------
-    class _BoundedStep:
-        def __call__(self, x):
-            step = np.concatenate([
-                rng.uniform(-beta_max * 0.3, beta_max * 0.3, n_stages),
-                rng.uniform(-f_ring_bound * 0.3, f_ring_bound * 0.3, n_disp * n_rings),
-            ])
-            return np.clip(x + step, lower, upper)
+    if local_only:
+        opt = minimize(_obj, x0, method="L-BFGS-B", bounds=bounds)
+    else:
+        class _BoundedStep:
+            def __call__(self, x):
+                step = np.concatenate([
+                    rng.uniform(-beta_max * 0.3, beta_max * 0.3, n_stages),
+                    rng.uniform(-f_ring_bound * 0.3, f_ring_bound * 0.3, n_disp * n_rings),
+                ])
+                return np.clip(x + step, lower, upper)
 
-    opt = basinhopping(
-        _obj,
-        x0,
-        minimizer_kwargs={"method": "L-BFGS-B", "bounds": bounds},
-        niter=n_iter,
-        take_step=_BoundedStep(),
-        seed=rng,
-    )
+        opt = basinhopping(
+            _obj,
+            x0,
+            minimizer_kwargs={"method": "L-BFGS-B", "bounds": bounds},
+            niter=n_iter,
+            take_step=_BoundedStep(),
+            seed=rng,
+        )
 
     x_best   = np.clip(opt.x, lower, upper)
     betas_opt = list(x_best[:n_stages])

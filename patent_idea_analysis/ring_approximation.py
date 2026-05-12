@@ -168,16 +168,19 @@ def compute_ring_spectrum(
     Q_e: float,
     f_carrier: float = 193e12,
     f_mod: float = 50e9,
+    f_search_radius: float = 500e9,
 ) -> dict:
     """Approximate each dispersion stage with rings and recompute the optical spectrum.
 
     Parameters
     ----------
-    opt_result : dict returned by load_optimizer_result
-    Q_i        : intrinsic Q factor for every ring
-    Q_e        : external Q factor for every ring
-    f_carrier  : optical carrier frequency [Hz]
-    f_mod      : modulation frequency [Hz]
+    opt_result      : dict returned by load_optimizer_result
+    Q_i             : intrinsic Q factor for every ring
+    Q_e             : external Q factor for every ring
+    f_carrier       : optical carrier frequency [Hz]
+    f_mod           : modulation frequency [Hz]
+    f_search_radius : half-range [Hz] passed to solve_ring_for_sideband; limits
+                      how far from the target sideband a ring resonance can sit
 
     Returns
     -------
@@ -194,22 +197,27 @@ def compute_ring_spectrum(
     n_max            = int(config["n_max"])
     n_stages         = int(config["n_stages"])
     truncate         = n_stages > 2
+    disp_n_max       = config.get("disp_n_max", None)
 
     rings_per_stage    = []
     transfer_per_stage = []
 
     for phi_full in phi_params_full:
-        # Only create rings for harmonics that received a non-zero phase shift.
-        # Harmonics outside disp_n_max are already zeroed in phi_params_full.
+        # Create rings only for harmonics within disp_n_max (the optimized window).
+        # Outer harmonics may carry a non-zero phase (e.g. a global rotation) but
+        # no ring is placed there — their transfer is determined by the off-resonance
+        # tails of the inner rings.
         rings_this = [
             solve_ring_for_sideband(
                 phi_target=float(phi_full[j]),
                 f_sideband=float(f_carrier + harmonics[j] * f_mod),
                 Q_i=Q_i,
                 Q_e=Q_e,
+                f_search_radius=f_search_radius,
             )
             for j in range(len(harmonics))
             if abs(phi_full[j]) > 1e-9
+            and (disp_n_max is None or abs(int(harmonics[j])) <= disp_n_max)
         ]
         rings_per_stage.append(rings_this)
         transfer = compute_ring_transfer(rings_this, harmonics, f_carrier, f_mod)

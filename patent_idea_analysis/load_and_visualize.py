@@ -29,14 +29,14 @@ from graphics import (
 # ---------------------------------------------------------------------------
 # Paste the path to the result folder here
 # ---------------------------------------------------------------------------
-RESULT_FOLDER  = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260429_155817"
-USE_DB         = True   # set True to show spectrum in dB
+RESULT_FOLDER  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260507_133331"
+USE_DB         = False   # set True to show spectrum in dB
 DB_FLOOR       = -60.0  # dB floor [only used when USE_DB = True]
 PHASE_MOD_2PI  = True   # set True to wrap dispersion phase profiles to [0, 2*pi)
 MINIMIZE_PHASE     = False  # set True to also show the minimum-total-phase equivalent profile
 PLOT_INTERMEDIATE  = True   # set True to plot spectrum after each PM stage
 N_DISPLAY          = 6     # number of harmonic orders shown on each side of spectrum plots
-SAVE_DIR       = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media" # r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\harmonic6"   # set to a folder path to save all figures as PNGs, e.g. r"C:\path\to\figures"
+SAVE_DIR       = None # r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media" # r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\harmonic6"   # set to a folder path to save all figures as PNGs, e.g. r"C:\path\to\figures"
 SAVE_DPI       = 150    # resolution for saved figures
 PUBLISHED_PLOT = False  # if True: strip all labels/ticks/legend/title from spectrum, save as .svg
 # ---------------------------------------------------------------------------
@@ -406,9 +406,12 @@ elif IS_RING_OPT:
     print(f"  {betas_str}")
     print(f"  Q_i={Q_i:.2e}  Q_e={Q_e:.2e}  "
           f"f_carrier={f_carrier:.3e} Hz  f_mod={f_mod:.3e} Hz")
+    total_power = float(np.sum(np.abs(amplitudes) ** 2))
+    total_power_db = 10.0 * np.log10(total_power) if total_power > 0 else float("-inf")
     print(f"  ratio={result['ratio']:.6f}  "
           f"wanted power={result['wanted_power']:.6f}  "
           f"wanted harmonic={config.get('wanted_harmonic', '?')}")
+    print(f"  total comb power={total_power:.6f}  ({total_power_db:+.2f} dB)")
 
     for s, stage_rings in enumerate(rings_per_stage):
         freqs_ghz = [(r.f_0 - f_carrier) / 1e9 for r in stage_rings]

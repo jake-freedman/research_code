@@ -95,7 +95,9 @@ def field_transmission_coefficient(
     num = 1j * delta_omega + (ring.gamma_i - ring.gamma_e) / 2
     den = 1j * delta_omega + (ring.gamma_i + ring.gamma_e) / 2
     # return num / den
-    return (2j*delta_omega / ring.omega_0 + 1 / ring.Q_i - 1/ring.Q_e) / (2j*delta_omega / ring.omega_0 + 1/ring.Q_i + 1/ring.Q_e)
+    t = (2j*delta_omega / ring.omega_0 + 1 / ring.Q_i - 1/ring.Q_e) / (2j*delta_omega / ring.omega_0 + 1/ring.Q_i + 1/ring.Q_e)
+    # return 1 * np.exp(1j*np.angle(t))
+    return t
     return (-ring.gamma_i + ring.gamma_e + 1j*delta_omega) / (ring.gamma_i + ring.gamma_e - 1j*delta_omega)
 
 
