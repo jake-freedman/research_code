@@ -24,6 +24,8 @@ import matplotlib.ticker as ticker
 import numpy as np
 from scipy.special import jv
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -36,7 +38,7 @@ N_TERMS         = 50      # harmonic truncation (n = -N_TERMS .. N_TERMS)
 USE_DB   = False          # show heatmap (n=2 only) in dB
 DB_FLOOR = -30.0          # dB floor for colour scale
 
-SAVE_PATH = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\best1"          # e.g. r"C:\path\to\figure.png"; None = don't save
+SAVE_PATH = local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\best1")          # e.g. r"C:\path\to\figure.png"; None = don't save
 
 # ---------------------------------------------------------------------------
 # Helper: max-efficiency amplitude for one beta combination via iterative

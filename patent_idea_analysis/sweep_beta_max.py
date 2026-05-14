@@ -18,6 +18,8 @@ import numpy as np
 
 from ssb_spectrum import optimize_ssb
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -35,7 +37,7 @@ OBJECTIVE       = "power"
 PHI_MAX         = None
 DISP_N_MAX      = None    # fixed dispersion limit (None = all harmonics free)
 
-OUT_DIR    = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
+OUT_DIR    = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data")
 BATCH_NAME = f"beta_sweep_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # ---------------------------------------------------------------------------
 

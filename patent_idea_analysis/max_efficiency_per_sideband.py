@@ -16,6 +16,7 @@ from scipy.special import jv
 
 from ssb_spectrum import plot_optical_spectrum
 
+from path_utils import local_path
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -31,8 +32,8 @@ USE_DB             = True
 DB_FLOOR           = -60.0
 N_DISPLAY          = 8    # harmonics shown either side in spectrum plot
 
-SAVE_PATH          = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\2_pm_ssbm_summary"
-SPECTRUM_SAVE_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\2_pm_spectrum_sb2"
+SAVE_PATH          = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\2_pm_ssbm_summary")
+SPECTRUM_SAVE_PATH = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\2_pm_spectrum_sb2")
 
 # If True: strip all axis labels and tick labels, raise spines above content,
 # set y-max to 1.1, no legend, and save as .svg regardless of SAVE_PATH extension.

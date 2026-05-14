@@ -37,12 +37,14 @@ from ring_approximation import (
     plot_combined_ring_transmission,
 )
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 # Path to a folder produced by run_optimization.py (contains config.json etc.)
-OPT_FOLDER = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\5rings_targets\20260507_143539"
+OPT_FOLDER = local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\17rings_targets\20260514_125913")
 
 # Ring Q factors (same for every ring in every stage)
 Q_I = 1e6   # intrinsic Q

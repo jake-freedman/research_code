@@ -21,10 +21,12 @@ import numpy as np
 from ssb_spectrum import compute_optical_spectrum_general
 from ssb_multitone_cascaded import compute_cascaded_multitone_spectrum
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-RESULT_FOLDER = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3pm\20260421_182654"
+RESULT_FOLDER = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3pm\20260421_182654")
 
 N_SAMPLES     = 10000   # number of Monte Carlo draws
 FRAC_STD_BETA = 0.01   # fractional std for modulation depths  (std = FRAC_STD_BETA * |beta|)
@@ -34,7 +36,7 @@ USE_DB   = True          # if True, histogram x-axis is in dB
 DB_FLOOR = -40.0          # dB floor (only used when USE_DB = True)
 SEED     = 42             # random seed for reproducibility (None for random)
 
-SAVE_DIR  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media"   # folder to save the histogram PNG, or "" to skip
+SAVE_DIR  = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media")   # folder to save the histogram PNG, or "" to skip
 SAVE_NAME = ""   # filename stem (no extension); "" = auto-generate from harmonic + scale
 SAVE_DPI  = 150
 

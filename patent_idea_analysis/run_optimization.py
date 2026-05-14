@@ -25,6 +25,8 @@ import numpy as np
 
 from ssb_spectrum import optimize_ssb, plot_optical_spectrum
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration — edit these values before running
 # ---------------------------------------------------------------------------
@@ -44,15 +46,15 @@ ARBITRARY_TARGETS     = {-4: 0.25, -3: 0.75, -2: 0.25, -1: 0.75, 0: 0.25, 1: 0.7
 PHI_MAX         = None    # maximum phase shift (rad) per harmonic; None = no limit
                           # free-phase mode: hard bound [0, PHI_MAX]s
                           # polynomial mode: soft quadratic penalty
-DISP_N_MAX      = 3    # number of sidebands that can receive non-zero dispersion phase;
+DISP_N_MAX      = 8    # number of sidebands that can receive non-zero dispersion phase;
                           # harmonics |n| > DISP_N_MAX are forced to zero phase.
                           # None = all harmonics up to N_MAX are free.
 
 # Full path to the folder where timestamped result sub-folders will be saved.
-OUT_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\5rings_targets"
+OUT_DIR = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\17rings_targets")
 
 # Set to a previous result folder path to warm-start, or None to start fresh.
-RESUME = None   # e.g. r"C:\path\to\results\20260417_153012"
+RESUME = None   # e.g. local_path(r"C:\path\to\results\20260417_153012")
 
 # ---------------------------------------------------------------------------
 

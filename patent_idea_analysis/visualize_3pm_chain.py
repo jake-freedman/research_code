@@ -27,10 +27,12 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from scipy.special import jv
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-LOAD_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm\20260425_153551"
+LOAD_PATH = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm\20260425_153551")
 
 DISPLAY_N_MAX = 3  # None = use n_max from config.json
 
@@ -44,7 +46,7 @@ GLOBAL_PHASE_DEG = 180.0   # global phase rotation added to every combline in ev
 SHOW_ARRAY_FIGS = False   # set False to skip the per-combline contribution array figures
 
 FOR_PUBLICATION = True   # suppress all titles and save each figure as an SVG
-PUB_SAVE_PATH   = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+PUB_SAVE_PATH   = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media")
 PUB_GRID             = False   # also produce a composited 2×3 figure with all 6 stages
 PUB_GRID_FIG_W_MM    = 210.0  # composite figure width  [mm]
 PUB_GRID_FIG_H_MM    = 140.0  # composite figure height [mm]

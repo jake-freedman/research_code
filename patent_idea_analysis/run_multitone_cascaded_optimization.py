@@ -25,6 +25,8 @@ import numpy as np
 from ssb_multitone_cascaded import optimize_cascaded_multitone
 from ssb_spectrum import plot_optical_spectrum
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration — edit these values before running
 # ---------------------------------------------------------------------------
@@ -41,9 +43,9 @@ METHOD          = "conv"   # "fft" : PM transfer via time-domain FFT
                           # "conv": PM transfer via Jacobi-Anger convolution
 N_FFT           = 8192    # FFT size (only used when METHOD = "fft")
 
-OUT_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
+OUT_DIR = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data")
 
-RESUME = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260421_163348"   # e.g. r"C:\path\to\results\20260417_153012"
+RESUME = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260421_163348")   # e.g. local_path(r"C:\path\to\results\20260417_153012")
 
 # ---------------------------------------------------------------------------
 

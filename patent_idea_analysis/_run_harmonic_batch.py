@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ssb_spectrum import optimize_ssb, plot_optical_spectrum
 
+from path_utils import local_path
+
 BETA_MAX   = 5.0
 N_MAX      = 20
 N_STAGES   = 3
@@ -16,7 +18,7 @@ SEED       = 1
 OBJECTIVE  = "power"
 PHI_MAX    = None
 DISP_N_MAX = 8
-OUT_DIR    = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm"
+OUT_DIR    = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm")
 
 for WANTED_HARMONIC in range(1, 9):
     print(f"\n=== WANTED_HARMONIC = {WANTED_HARMONIC} ===")

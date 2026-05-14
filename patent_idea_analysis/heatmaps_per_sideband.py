@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import jv
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -22,7 +24,7 @@ N_TERMS     = 30      # harmonic truncation
 USE_DB   = False      # show in dB instead of linear
 DB_FLOOR = -30.0      # dB floor for colour scale
 
-SAVE_PATH = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\heatmaps\all_sidebands2.png"
+SAVE_PATH = local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\heatmaps\all_sidebands2.png")
 # None = don't save
 
 # ---------------------------------------------------------------------------

@@ -21,11 +21,13 @@ import numpy as np
 
 from ssb_spectrum import compute_optical_spectrum_general
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-FOLDER_ROW1 = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm"
-FOLDER_ROW2 = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm"
+FOLDER_ROW1 = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm")
+FOLDER_ROW2 = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm")
 
 ROW1_LABEL = "2 stages"
 ROW2_LABEL = "3 stages"
@@ -41,7 +43,7 @@ Y_MAX_DB = 5.0             # upper y-limit [dB]
 Y_CEIL = 1.1
 Y_FLOOR = -0.05
 
-SAVE_DIR  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+SAVE_DIR  = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media")
 SAVE_NAME = "split_grid"   # filename stem (no extension)
 SAVE_DPI  = 200
 

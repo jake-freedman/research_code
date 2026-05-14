@@ -28,29 +28,54 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ssb_multitone import optimize_multitone
+from ssb_multitone import (
+    optimize_multitone,
+    compute_multitone_spectrum_fft,
+    compute_multitone_spectrum_conv,
+)
 from ssb_spectrum import plot_optical_spectrum
+
+from path_utils import local_path
 
 # ---------------------------------------------------------------------------
 # Configuration — edit these values before running
 # ---------------------------------------------------------------------------
 WANTED_HARMONIC = 1       # target sideband index
-BETA_MAX        = 5.0     # upper bound on each beta_k (rad)
+BETA_MAX        = 10.0     # upper bound on each beta_k (rad)
 N_MAX           = 30      # harmonic truncation order
-N_TONES         = 3       # number of RF drive tones (k = 1 .. N_TONES)
-N_ITER          = 200     # basin-hopping iterations
-SEED            = None    # integer for reproducibility, or None for random
+N_TONES         = 10      # number of RF drive tones (k = 1 .. N_TONES)
+N_ITER          = 100     # basin-hopping iterations
+SEED            = 1    # integer for reproducibility, or None for random
 OBJECTIVE       = "power" # "power": maximise power at wanted harmonic
                           # "ratio": minimise unwanted/wanted power ratio
 METHOD          = "fft"   # "fft" : time-domain FFT (fast, ~1e-10 accuracy)
                           # "conv": Jacobi-Anger convolution (exact, slower)
 N_FFT           = 8192    # FFT size (only used when METHOD = "fft")
 
-OUT_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"
+OUT_DIR = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data")
 
-RESUME = None   # e.g. r"C:\path\to\results\20260417_153012"
+RESUME = None   # e.g. local_path(r"C:\path\to\results\20260417_153012")
+
+# Sawtooth initial guess
+# When True, uses the K-tone Fourier approximation of a sawtooth wave as the
+# starting point.  For wanted harmonic n: beta_k = clip(2n/k, 0, BETA_MAX),
+# theta_k = 0 (k odd) or π (k even).  RESUME takes precedence if both are set.
+SAWTOOTH_INIT = True
 
 # ---------------------------------------------------------------------------
+
+
+def _make_sawtooth_x0(wanted_harmonic: int, n_tones: int, beta_max: float) -> np.ndarray:
+    """K-tone Fourier approximation of a rising sawtooth with amplitude n·π.
+
+    A sawtooth from -n·π to +n·π concentrates optical power at harmonic n.
+    Fourier coefficients: beta_k = 2n/k (clipped to beta_max),
+                          theta_k = 0 (k odd) or π (k even).
+    """
+    ks     = np.arange(1, n_tones + 1, dtype=float)
+    betas  = np.minimum(2.0 * wanted_harmonic / ks, beta_max)
+    thetas = np.where(ks % 2 == 0, np.pi, 0.0)
+    return np.concatenate([betas, thetas])
 
 
 def load_resume(folder: str) -> np.ndarray:
@@ -76,7 +101,29 @@ def load_resume(folder: str) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Warm-start
 # ---------------------------------------------------------------------------
-x0 = None
+x0           = None
+sawtooth_x0  = None
+sawtooth_amps = None
+sawtooth_harmonics = None
+
+if SAWTOOTH_INIT:
+    sawtooth_x0 = _make_sawtooth_x0(WANTED_HARMONIC, N_TONES, BETA_MAX)
+    x0 = sawtooth_x0
+    _betas_s  = sawtooth_x0[:N_TONES]
+    _thetas_s = sawtooth_x0[N_TONES:]
+    if METHOD == "fft":
+        sawtooth_harmonics, sawtooth_amps = compute_multitone_spectrum_fft(
+            _betas_s, _thetas_s, n_max=N_MAX, n_fft=N_FFT,
+        )
+    else:
+        sawtooth_harmonics, sawtooth_amps = compute_multitone_spectrum_conv(
+            _betas_s, _thetas_s, n_max=N_MAX,
+        )
+    _saw_idx    = np.where(sawtooth_harmonics == WANTED_HARMONIC)[0]
+    _saw_power  = float(np.abs(sawtooth_amps[_saw_idx[0]]) ** 2) if len(_saw_idx) else 0.0
+    print(f"Sawtooth x0: betas={_betas_s.tolist()}")
+    print(f"  → wanted_power={_saw_power:.6f}")
+
 if RESUME:
     x0 = load_resume(RESUME)
     with open(os.path.join(RESUME, "result.json")) as f:
@@ -130,6 +177,21 @@ os.makedirs(out_folder, exist_ok=True)
 
 with open(os.path.join(out_folder, "config.json"), "w") as f:
     json.dump(config, f, indent=2)
+
+if sawtooth_x0 is not None:
+    _saw_idx   = np.where(sawtooth_harmonics == WANTED_HARMONIC)[0]
+    _saw_want  = float(np.abs(sawtooth_amps[_saw_idx[0]]) ** 2) if len(_saw_idx) else 0.0
+    _saw_total = float(np.sum(np.abs(sawtooth_amps) ** 2))
+    _saw_ratio = (_saw_total - _saw_want) / _saw_want if _saw_want > 1e-30 else np.inf
+    with open(os.path.join(out_folder, "sawtooth_result.json"), "w") as f:
+        json.dump(dict(
+            betas        = sawtooth_x0[:N_TONES].tolist(),
+            thetas       = sawtooth_x0[N_TONES:].tolist(),
+            wanted_power = _saw_want,
+            ratio        = _saw_ratio,
+        ), f, indent=2)
+    fig_saw, _ = plot_optical_spectrum(sawtooth_harmonics, sawtooth_amps)
+    fig_saw.savefig(os.path.join(out_folder, "sawtooth_spectrum.png"), dpi=150)
 
 result_data = dict(
     betas        = [float(b)  for b  in res["betas"]],

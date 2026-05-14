@@ -10,13 +10,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import jv
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 BETA_MAX  = 10.0   # maximum modulation depth to plot
 N_POINTS  = 500    # number of points along beta axis
 
-SAVE_PATH = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\best1_pm_only"
+SAVE_PATH = local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\best1_pm_only")
 
 # ---------------------------------------------------------------------------
 # Compute

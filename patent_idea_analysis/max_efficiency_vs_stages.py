@@ -13,7 +13,7 @@ The single-PM reference is always  max_beta |J_k(beta)|^2.
 
 Saved folder layout
 -------------------
-  <DATA_DIR>/<timestamp>/
+  <OUT_DIR>/<timestamp>/
     config.json           - all run parameters
     max_powers.npy        - max efficiency per sideband (N_STAGES PMs)
     max_powers_1pm.npy    - max efficiency per sideband (1 PM reference)
@@ -37,6 +37,8 @@ from scipy.special import jv
 
 from ssb_spectrum import optimize_ssb
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -55,13 +57,13 @@ N_ITER      = 1     # basin-hopping iterations per sideband
 SEED        = 1    # integer for reproducibility, or None for random
 
 # Path where a timestamped results folder will be created.
-DATA_DIR  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data"      # e.g. r"C:\path\to\data"
+OUT_DIR   = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data")
 
 # Set to a previously saved folder to skip computation and just re-plot.
-LOAD_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\sideband_up_to8_3pm"      # e.g. r"C:\path\to\data\20260421_143012"
+LOAD_PATH = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\sideband_up_to8_3pm")
 
 # Path to save the figure image; None = don't save.
-SAVE_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\3mods_max_eff"      # e.g. r"C:\path\to\figure.png"
+SAVE_PATH = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\3mods_max_eff")
 
 # If True: strip all axis labels and tick labels, raise spines above content,
 # set y-max to 1.1, and save as .svg regardless of SAVE_PATH extension.
@@ -226,9 +228,9 @@ else:
         max_powers_1pm[i] = float(np.max(jv(k, betas) ** 2))
 
     # Save results
-    if DATA_DIR is not None:
+    if OUT_DIR is not None:
         timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_folder = os.path.join(DATA_DIR, timestamp)
+        out_folder = os.path.join(OUT_DIR, timestamp)
         os.makedirs(out_folder, exist_ok=True)
 
         config = dict(

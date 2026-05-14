@@ -12,6 +12,8 @@ import matplotlib.colors as mcolors
 import numpy as np
 from scipy.special import jv
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -35,7 +37,7 @@ HIGHLIGHT_N   = 0      # harmonic index to draw fully opaque
 OTHER_ALPHA   = 0.20   # opacity for all other comblines
 
 # Save path — set to None to skip saving; extension is forced to .svg
-SAVE_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\comb_plot"
+SAVE_PATH = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\comb_plot")
 
 # Geometry — axes size in mm; margins in inches
 AX_W_MM   = 60.0

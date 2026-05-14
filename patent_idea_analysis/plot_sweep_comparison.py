@@ -27,15 +27,17 @@ from graphics import (
     LIGHTBLUE2, BLUE2, GREEN2, VIOLET2, RED2, DARKBLUE2, DARKGREEN2, ORANGE2, PINK2, TAN2, BEIGE2
 )
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # INPUT — set this to the parent folder containing the sweep sub-folders
 # ---------------------------------------------------------------------------
-PARENT_FOLDER = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm"
+PARENT_FOLDER = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\3stage_ssbm")
 
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
-SAVE_DIR = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+SAVE_DIR = local_path(r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media")
 SAVE_DPI = 200
 
 # ---------------------------------------------------------------------------

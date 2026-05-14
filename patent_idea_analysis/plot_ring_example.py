@@ -6,6 +6,8 @@ from graphics import (
     LIGHTBLUE2, GREEN2, VIOLET2, RED2, ORANGE2, PINK2, DARKGREEN2, DARKBLUE2, TAN2
 )
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Ring parameters — each entry is one ring (Q_I, Q_E)
 # ---------------------------------------------------------------------------
@@ -31,7 +33,7 @@ DB_FLOOR  = -10.0
 PHASE_MIN = -2 * np.pi
 
 PUBLISHED_PLOT = False   # if True: strip labels/ticks/legend and save as .svg
-SAVE_PATH      = None # r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\rings.svg"    # e.g. r"C:\path\to\figure.png"; None = don't save
+SAVE_PATH      = None # local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\rings.svg")
 
 # ---------------------------------------------------------------------------
 

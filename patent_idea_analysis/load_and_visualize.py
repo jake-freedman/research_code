@@ -26,17 +26,19 @@ from graphics import (
     LIGHTBLUE2, BLUE2, GREEN2, VIOLET2, RED2, DARKBLUE2, DARKGREEN2, ORANGE2, PINK2,
 )
 
+from path_utils import local_path
+
 # ---------------------------------------------------------------------------
 # Paste the path to the result folder here
 # ---------------------------------------------------------------------------
-RESULT_FOLDER  = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260507_133331"
+RESULT_FOLDER  = local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\ao_patent_ideas\ssbm_by_cascaded_pm_and_dispersion\data\20260514_124239")
 USE_DB         = False   # set True to show spectrum in dB
 DB_FLOOR       = -60.0  # dB floor [only used when USE_DB = True]
 PHASE_MOD_2PI  = True   # set True to wrap dispersion phase profiles to [0, 2*pi)
 MINIMIZE_PHASE     = False  # set True to also show the minimum-total-phase equivalent profile
 PLOT_INTERMEDIATE  = True   # set True to plot spectrum after each PM stage
 N_DISPLAY          = 6     # number of harmonic orders shown on each side of spectrum plots
-SAVE_DIR       = None # r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media" # r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\harmonic6"   # set to a folder path to save all figures as PNGs, e.g. r"C:\path\to\figures"
+SAVE_DIR       = local_path(r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media")
 SAVE_DPI       = 150    # resolution for saved figures
 PUBLISHED_PLOT = False  # if True: strip all labels/ticks/legend/title from spectrum, save as .svg
 # ---------------------------------------------------------------------------
