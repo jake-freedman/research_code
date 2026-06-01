@@ -2,8 +2,10 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from scipy.optimize import brentq
+from scipy.special import j0, j1
 
-DATA_ROOT = Path(r"D:\current_periodic_support_phase_modulator_data\die2-3_wgN11_periodic_suspension_2mm_2024-07-02-17-21-16")
+DATA_ROOT = Path(r"D:\die2-3_wg19_narrow_suspended_2mm_long_2024-08-08-10-53-27\die2-3_wg19_narrow_suspended_2mm_long_2024-08-08-10-53-27")
 
 # ── graphics.py style ────────────────────────────────────────────────────────
 GREEN2      = '#93C572'
@@ -31,6 +33,22 @@ tick_direction     = 'in'
 axis_label_fontsize  = 10.0
 tick_label_fontsize  = 8.0
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _beta_from_ratio(ratio: float) -> float:
+    """Solve J1(β)/J0(β) = ratio for β using Brent's method."""
+    try:
+        return brentq(lambda b: j1(b) / j0(b) - ratio, 1e-6, 2.4)
+    except ValueError:
+        return np.nan
+
+
+def compute_beta(p0_dbm: np.ndarray, p1_dbm: np.ndarray) -> np.ndarray:
+    """Return β at each point from zeroth- and first-order sideband powers (dBm)."""
+    p0_lin = 10 ** (p0_dbm / 10)
+    p1_lin = 10 ** (p1_dbm / 10)
+    ratios  = np.sqrt(p1_lin / p0_lin)
+    return np.array([_beta_from_ratio(r) for r in ratios])
 
 
 def parse_csv(path: Path):
@@ -67,32 +85,61 @@ def main():
     sb_dirs = sorted(data_root.glob('sb_*'),
                      key=lambda p: int(p.name.split('_')[1]))
 
-    fig_w_in = fig_w / 25.4
-    fig_h_in = fig_h / 25.4
-    fig, ax = plt.subplots(figsize=(fig_w_in, fig_h_in))
-
-    fig.subplots_adjust(
-        left   = left_mm   / fig_w,
-        right  = 1 - right_mm  / fig_w,
-        bottom = bottom_mm / fig_h,
-        top    = 1 - top_mm    / fig_h,
-    )
-
+    # load all sidebands
+    sb_data = {}
     for sb_dir in sb_dirs:
         idx = int(sb_dir.name.split('_')[1])
-        color = SB_COLORS[idx % len(SB_COLORS)]
-        drive_freqs, max_powers = load_sideband(sb_dir)
-        ax.plot(drive_freqs * 1e3, max_powers,
-                color=color, linewidth=1.5, marker='none', markersize=3,
-                label=f'SB {idx}')
+        sb_data[idx] = load_sideband(sb_dir)
 
-    for spine in ax.spines.values():
-        spine.set_linewidth(spine_linewidth)
-    ax.tick_params(axis='both', direction=tick_direction,
-                   width=tick_width, labelsize=tick_label_fontsize)
-    ax.set_xlabel('Drive frequency (MHz)', fontsize=axis_label_fontsize)
-    ax.set_ylabel('Max power (dBm)', fontsize=axis_label_fontsize)
-    ax.legend(fontsize=tick_label_fontsize, frameon=False)
+    # two-row figure
+    between_mm = 8.0
+    fig_h2 = bottom_mm + 2 * axes_height_mm + between_mm + top_mm
+    fig_w_in = fig_w / 25.4
+    fig_h_in = fig_h2 / 25.4
+    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(fig_w_in, fig_h_in))
+
+    ax_h_frac = axes_height_mm / fig_h2
+    gap_frac  = between_mm     / fig_h2
+    l_frac    = left_mm        / fig_w
+    r_frac    = 1 - right_mm   / fig_w
+    b_frac    = bottom_mm      / fig_h2
+
+    ax_bot.set_position([l_frac, b_frac,                   r_frac - l_frac, ax_h_frac])
+    ax_top.set_position([l_frac, b_frac + ax_h_frac + gap_frac, r_frac - l_frac, ax_h_frac])
+
+    # ── top: max power per sideband ──────────────────────────────────────────
+    for idx, (drive_freqs, max_powers) in sb_data.items():
+        color = SB_COLORS[idx % len(SB_COLORS)]
+        ax_top.plot(drive_freqs * 1e3, max_powers,
+                    color=color, linewidth=1.5,
+                    label=f'SB {idx}')
+
+    ax_top.set_ylabel('Max power (dBm)', fontsize=axis_label_fontsize)
+    ax_top.legend(fontsize=tick_label_fontsize, frameon=False)
+    ax_top.tick_params(labelbottom=False)
+
+    # ── bottom: modulation depth ─────────────────────────────────────────────
+    if 0 in sb_data and 1 in sb_data:
+        freqs0, p0 = sb_data[0]
+        freqs1, p1 = sb_data[1]
+        d0 = {round(f, 7): p for f, p in zip(freqs0, p0)}
+        d1 = {round(f, 7): p for f, p in zip(freqs1, p1)}
+        common_keys = sorted(set(d0) & set(d1))
+        common      = np.array(common_keys)
+        p0_aligned  = np.array([d0[k] for k in common_keys])
+        p1_aligned  = np.array([d1[k] for k in common_keys])
+        beta = compute_beta(p0_aligned, p1_aligned)
+        ax_bot.plot(common * 1e3, beta,
+                    color=SB_COLORS[0], linewidth=1.5)
+
+    ax_bot.set_xlabel('Drive frequency (MHz)', fontsize=axis_label_fontsize)
+    ax_bot.set_ylabel('Modulation depth $\\beta$ (rad)', fontsize=axis_label_fontsize)
+
+    for ax in (ax_top, ax_bot):
+        for spine in ax.spines.values():
+            spine.set_linewidth(spine_linewidth)
+        ax.tick_params(axis='both', direction=tick_direction,
+                       width=tick_width, labelsize=tick_label_fontsize)
 
     out_path = data_root / 'sideband_max_power.png'
     fig.savefig(out_path, dpi=200, bbox_inches='tight')
