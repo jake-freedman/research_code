@@ -138,7 +138,7 @@ class HeterodyneSweepData:
         self,
         harmonic_numerator: int = 1,
         harmonic_denominator: int = 0,
-        beta_guess: float = 1.0,
+        beta_guess: float | np.ndarray = 1.0,
     ) -> np.ndarray:
         """
         Extract modulation depth β at each CW frequency.
@@ -156,8 +156,12 @@ class HeterodyneSweepData:
         harmonic_denominator : int
             Harmonic number for the denominator of the Bessel ratio. Default 0
             (carrier beat).
-        beta_guess : float
-            Initial guess for fsolve. Default 1.0.
+        beta_guess : float or np.ndarray
+            Initial guess for fsolve. A scalar is used for the first step and
+            then carried forward (each step seeds the next with the previous
+            solution), which is robust when β increases monotonically across
+            the sweep. Pass an array of length M to specify per-step guesses
+            explicitly (no carry-forward). Default 1.0.
 
         Returns
         -------
@@ -171,6 +175,10 @@ class HeterodyneSweepData:
         p_num = 10.0 ** (peaks[:, idx_num] / 10.0)        # dBm → mW
         p_den = 10.0 ** (peaks[:, idx_den] / 10.0)
 
+        carry_forward = np.ndim(beta_guess) == 0
+        guesses = (np.full(len(self.cw_freqs), float(beta_guess))
+                   if carry_forward else np.asarray(beta_guess, dtype=float))
+
         betas = np.empty(len(self.cw_freqs))
         for i, (pn, pd) in enumerate(zip(p_num, p_den)):
             target = np.sqrt(pn / pd)
@@ -182,7 +190,9 @@ class HeterodyneSweepData:
                     - t
                 )
 
-            betas[i] = float(fsolve(residual, beta_guess)[0])
+            betas[i] = float(fsolve(residual, guesses[i])[0])
+            if carry_forward and i + 1 < len(guesses):
+                guesses[i + 1] = betas[i]
 
         return betas
 
@@ -235,6 +245,7 @@ class HeterodyneSweepData:
         self,
         harmonic_numerator: int = 1,
         harmonic_denominator: int = 0,
+        beta_guess: float | np.ndarray = 1.0,
         axes_width_mm: float = _default_axes_w,
         axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
@@ -247,6 +258,9 @@ class HeterodyneSweepData:
         ----------
         harmonic_numerator, harmonic_denominator : int
             Harmonic pair for the Bessel ratio. Defaults 1 and 0.
+        beta_guess : float or np.ndarray
+            Initial guess for fsolve. Scalar → carry-forward mode.
+            See modulation_depth() for full description.
         ymin, ymax : float, optional
             Y-axis limits in radians.
 
@@ -254,7 +268,7 @@ class HeterodyneSweepData:
         -------
         fig, ax
         """
-        betas = self.modulation_depth(harmonic_numerator, harmonic_denominator)
+        betas = self.modulation_depth(harmonic_numerator, harmonic_denominator, beta_guess)
 
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
         ax.plot(

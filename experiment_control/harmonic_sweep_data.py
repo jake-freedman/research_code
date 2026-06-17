@@ -130,7 +130,7 @@ class HarmonicSweepData:
         self,
         harmonic_a: int = 1,
         harmonic_b: int = 3,
-        beta_guess: float = 1.0,
+        beta_guess: float | np.ndarray = 1.0,
     ) -> np.ndarray:
         """
         Extract modulation depth β at each CW frequency.
@@ -143,8 +143,12 @@ class HarmonicSweepData:
         ----------
         harmonic_a, harmonic_b : int
             Harmonic numbers to use for the ratio. Defaults 1 and 3.
-        beta_guess : float
-            Initial guess passed to fsolve at every CW step. Default 1.0.
+        beta_guess : float or np.ndarray
+            Initial guess for fsolve. A scalar is used for the first step and
+            then carried forward (each step seeds the next with the previous
+            solution), which is robust when β increases monotonically across
+            the sweep. Pass an array of length M to specify per-step guesses
+            explicitly (no carry-forward). Default 1.0.
 
         Returns
         -------
@@ -158,18 +162,20 @@ class HarmonicSweepData:
         p_a = 10.0 ** (peaks[:, idx_a] / 10.0)      # dBm → mW
         p_b = 10.0 ** (peaks[:, idx_b] / 10.0)
 
+        carry_forward = np.ndim(beta_guess) == 0
+        guesses = (np.full(len(self.cw_freqs), float(beta_guess))
+                   if carry_forward else np.asarray(beta_guess, dtype=float))
+
         betas = np.empty(len(self.cw_freqs))
         for i, (pa, pb) in enumerate(zip(p_a, p_b)):
-            # Use Jb(β)/Ja(β) = sqrt(Pb/Pa). This ratio is zero at β=0 and
-            # rises monotonically at small β, so fsolve is well-conditioned
-            # when harmonic_b is near the noise floor.
             target = np.sqrt(pb / pa)
-            # print(self.cw_freqs[i], target)
 
             def residual(beta, t=target):
                 return bessel_jn(harmonic_b, beta) / bessel_jn(harmonic_a, beta) - t
 
-            betas[i] = float(fsolve(residual, beta_guess)[0])
+            betas[i] = float(fsolve(residual, guesses[i])[0])
+            if carry_forward and i + 1 < len(guesses):
+                guesses[i + 1] = betas[i]
 
         return betas
 
@@ -181,6 +187,7 @@ class HarmonicSweepData:
         self,
         harmonic_a: int = 1,
         harmonic_b: int = 3,
+        beta_guess: float | np.ndarray = 1.0,
         axes_width_mm: float = _default_axes_w,
         axes_height_mm: float = _default_axes_h,
         ymin: float | None = None,
@@ -193,6 +200,9 @@ class HarmonicSweepData:
         ----------
         harmonic_a, harmonic_b : int
             Harmonic pair used for β extraction. Defaults 1 and 3.
+        beta_guess : float or np.ndarray
+            Initial guess for fsolve. Scalar → carry-forward mode.
+            See modulation_depth() for full description.
         ymin, ymax : float, optional
             Y-axis limits in radians.
 
@@ -200,7 +210,7 @@ class HarmonicSweepData:
         -------
         fig, ax
         """
-        betas = self.modulation_depth(harmonic_a, harmonic_b)
+        betas = self.modulation_depth(harmonic_a, harmonic_b, beta_guess)
 
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
         ax.plot(

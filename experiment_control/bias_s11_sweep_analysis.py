@@ -11,7 +11,7 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\bias_s11_sweep_2026-04-13-16-24-29.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv"
 
 # S11 overlay plot limits.
 YMIN = -3.0   # dB

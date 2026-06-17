@@ -1,15 +1,15 @@
 """
-Rohde & Schwarz FSV Signal and Spectrum Analyzer control library.
+Keysight CXA N9000B Signal Analyzer control library.
 
 Connect over LAN. The resource string format is:
     'TCPIP0::<ip_address>::INSTR'
 
 Example
 -------
-    from esa_control import ESA
+    from cxa_control import CXA
 
-    with ESA('TCPIP0::192.168.1.50::INSTR') as esa:
-        esa.configure(
+    with CXA('TCPIP0::192.168.1.51::INSTR') as cxa:
+        cxa.configure(
             start_freq=1e6,
             stop_freq=6e9,
             freq_step=1e6,
@@ -17,8 +17,8 @@ Example
             video_bw=1e6,
             ref_level=0.0,
         )
-        freqs, power_db = esa.sweep()
-        esa.save(freqs, power_db, folder=r'C:\data\esa')
+        freqs, power_db = cxa.sweep()
+        cxa.save(freqs, power_db, folder=r'C:\data\cxa')
 """
 
 from __future__ import annotations
@@ -41,16 +41,26 @@ from graphics import (
     bottom_mm as _bottom_mm, top_mm as _top_mm,
 )
 
+# Detector keyword mapping exposed to the user.
+# Keysight X-Series accepts: NORM, POS, SAMP, NEG, AVER (RMS average)
+_DETECTOR_MAP = {
+    'NORM': 'NORM',   # normal (sample on odd sweeps, peak on even)
+    'POS':  'POS',    # positive peak
+    'AVER': 'AVER',   # RMS average
+    'SAMP': 'SAMP',   # sample
+    'NEG':  'NEG',    # negative peak
+}
 
-class ESA:
-    """Interface to a Rohde & Schwarz FSV spectrum analyzer over LAN."""
+
+class CXA:
+    """Interface to a Keysight CXA N9000B spectrum analyzer over LAN."""
 
     def __init__(self, resource_name: str, timeout_ms: int = 30000):
         """
         Parameters
         ----------
         resource_name:
-            VISA resource string, e.g. 'TCPIP0::192.168.1.50::INSTR'
+            VISA resource string, e.g. 'TCPIP0::192.168.1.51::INSTR'
         timeout_ms:
             VISA timeout in milliseconds. Increased automatically during sweeps.
         """
@@ -63,6 +73,11 @@ class ESA:
         idn = self._inst.query('*IDN?')
         print(f"Connected to {idn.strip()}")
 
+        # Ensure the instrument is in Spectrum Analyzer mode and returns
+        # trace data as ASCII comma-separated values.
+        self._inst.write('INST:SEL SA')
+        self._inst.write('FORM:DATA ASC')
+
         self._start_freq: float | None = None
         self._stop_freq: float | None = None
         self._num_points: int | None = None
@@ -74,7 +89,7 @@ class ESA:
     # Context manager
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "ESA":
+    def __enter__(self) -> "CXA":
         return self
 
     def __exit__(self, *_) -> None:
@@ -97,7 +112,7 @@ class ESA:
         video_bw: float | None = None,
         ref_level: float = 0.0,
         attenuation: float = 0.0,
-        detector: str = 'RMS',
+        detector: str = 'AVER',
     ) -> None:
         """
         Set sweep parameters and push them to the instrument.
@@ -110,27 +125,32 @@ class ESA:
             Stop frequency in Hz.
         freq_step:
             Frequency step in Hz. Number of points = round((stop - start) / step) + 1,
-            clamped to the instrument max of 32001.
+            clamped to the instrument max of 40001.
         res_bw:
             Resolution bandwidth in Hz.
         video_bw:
-            Video bandwidth in Hz. If None, set to equal res_bw.
+            Video bandwidth in Hz. If None, set equal to res_bw.
         ref_level:
             Reference level (top of display) in dBm. Default 0.
         attenuation:
             RF input attenuation in dB. Default 0 (no attenuation).
         detector:
-            Detector type. One of: 'RMS', 'PEAK', 'AVER', 'SAMP', 'NEG'.
-            Default 'RMS'.
+            Detector type. One of: 'NORM', 'POS', 'AVER', 'SAMP', 'NEG'.
+            Default 'AVER' (RMS average).
         """
         if stop_freq <= start_freq:
             raise ValueError("stop_freq must be greater than start_freq")
         if freq_step <= 0:
             raise ValueError("freq_step must be positive")
+        det_key = detector.upper()
+        if det_key not in _DETECTOR_MAP:
+            raise ValueError(
+                f"detector must be one of {list(_DETECTOR_MAP)}; got '{detector}'"
+            )
 
         self._start_freq = float(start_freq)
         self._stop_freq = float(stop_freq)
-        self._num_points = min(round((stop_freq - start_freq) / freq_step) + 1, 32001)
+        self._num_points = min(round((stop_freq - start_freq) / freq_step) + 1, 40001)
         self._res_bw = float(res_bw)
         self._video_bw = float(video_bw) if video_bw is not None else float(res_bw)
         self._ref_level = float(ref_level)
@@ -141,10 +161,14 @@ class ESA:
         self._inst.write(f'BAND:RES {self._res_bw}')
         self._inst.write(f'BAND:VID {self._video_bw}')
         self._inst.write(f'DISP:WIND:TRAC:Y:RLEV {self._ref_level}')
-        self._inst.write(f'DET {detector}')
+        self._inst.write(f'DET:FUNC {_DETECTOR_MAP[det_key]}')
 
-        self._inst.write('INP:ATT:AUTO OFF')
-        self._inst.write(f'INP:ATT {float(attenuation)}')
+        # Attenuation — Keysight uses SENS:POW:ATT rather than INP:ATT
+        self._inst.write('SENS:POW:ATT:AUTO OFF')
+        self._inst.write(f'SENS:POW:ATT {float(attenuation)}')
+
+        # Let the instrument choose the fastest sweep mode (FFT vs swept).
+        self._inst.write('SWE:TYPE AUTO')
 
     def set_continuous(self, enable: bool = True) -> None:
         """Enable or disable continuous sweep mode on the instrument."""
@@ -168,23 +192,21 @@ class ESA:
         if self._num_points is None:
             raise RuntimeError("Call configure() before sweep().")
 
-        # Estimate sweep time: ~1/(RBW) per point plus headroom
+        # Estimate sweep time as num_points / RBW, plus headroom.
         sweep_time_ms = max(int((1.0 / self._res_bw) * self._num_points * 1000) + 5000, 10000)
         prev_timeout = self._inst.timeout
         self._inst.timeout = max(prev_timeout, sweep_time_ms)
-
-        # Single sweep and wait for completion
         self._inst.write('INIT:CONT OFF')
         self._inst.write('INIT:IMM')
         self._inst.query('*OPC?')
 
-        # Read trace
-        raw = self._inst.query('TRAC? TRACE1')
+        # Read trace — Keysight uses TRAC:DATA? instead of TRAC?
+        raw = self._inst.query('TRAC:DATA? TRACE1')
         power_db = np.array([float(v) for v in raw.split(',')])
 
         self._inst.timeout = prev_timeout
 
-        # Use the actual number of returned points — the instrument may have
+        # Use the actual number of returned points in case the instrument
         # snapped num_points to its own internal value.
         freqs = np.linspace(self._start_freq, self._stop_freq, len(power_db))
         return freqs, power_db
@@ -214,7 +236,7 @@ class ESA:
         os.makedirs(folder, exist_ok=True)
 
         if filename is None:
-            filename = 'esa_' + optional_name + datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + '.csv'
+            filename = 'cxa_' + optional_name + datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + '.csv'
 
         data = np.column_stack([freqs, power_db])
         full_path = os.path.join(folder, filename)
@@ -250,7 +272,7 @@ class ESA:
         power_db:
             Power array in dBm.
         axes_width_mm, axes_height_mm:
-            Size of the axes area in mm. Defaults 180 x 100.
+            Size of the axes area in mm.
         ymin, ymax:
             Y-axis limits in dBm. If None, matplotlib auto-scales.
         """
@@ -300,18 +322,18 @@ def _plot_spectrum(
 
 
 # ---------------------------------------------------------------------------
-# ESAData — load and plot previously saved ESA CSV files
+# CXAData — load and plot previously saved CXA CSV files
 # ---------------------------------------------------------------------------
 
-class ESAData:
-    """Load and plot spectrum data previously saved by ESA.save()."""
+class CXAData:
+    """Load and plot spectrum data previously saved by CXA.save()."""
 
     def __init__(self, filepath: str):
         """
         Parameters
         ----------
         filepath:
-            Path to a CSV file written by ESA.save().
+            Path to a CSV file written by CXA.save().
             Expected columns: frequency_hz, power_dbm.
         """
         data = np.loadtxt(filepath, delimiter=',', skiprows=1)
@@ -320,8 +342,8 @@ class ESAData:
         self.filepath: str = filepath
 
     @classmethod
-    def from_file(cls, filepath: str) -> "ESAData":
-        """Load an ESA CSV file by its full path."""
+    def from_file(cls, filepath: str) -> "CXAData":
+        """Load a CXA CSV file by its full path."""
         return cls(filepath)
 
     def modulation_depth(
@@ -330,11 +352,11 @@ class ESAData:
         window_hz: float = 20e6,
         beta_guess: float = 1.0,
     ) -> float:
-        """Extract the MZM sinusoidal modulation depth beta from the ESA spectrum.
+        """Extract the MZM sinusoidal modulation depth beta from the spectrum.
 
         Finds the peak power within a window around the fundamental (mod_freq)
         and third harmonic (3 * mod_freq), converts from dBm to linear power,
-        then solves sqrt(P1/P3) = J1(beta) / J3(beta) for beta.
+        then solves sqrt(P3/P1) = J3(beta) / J1(beta) for beta.
 
         Parameters
         ----------
@@ -364,8 +386,7 @@ class ESAData:
         p1 = _peak_power_linear(mod_freq)
         p3 = _peak_power_linear(3.0 * mod_freq)
 
-        target = np.sqrt(p3 / p1)  # = J3(beta) / J1(beta), zero at beta=0
-        # print(mod_freq, target)
+        target = np.sqrt(p3 / p1)  # = J3(beta) / J1(beta)
 
         def residual(beta):
             return jn(3, beta) / j1(beta) - target
@@ -380,5 +401,5 @@ class ESAData:
         ymin: float | None = None,
         ymax: float | None = None,
     ) -> tuple[plt.Figure, plt.Axes]:
-        """Plot the loaded spectrum. Same style as ESA.plot()."""
+        """Plot the loaded spectrum. Same style as CXA.plot()."""
         return _plot_spectrum(self.freqs, self.power_db, axes_width_mm, axes_height_mm, ymin, ymax)

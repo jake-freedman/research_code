@@ -7,21 +7,21 @@ import os
 # ============================================================
 
 # Ring 1 properties
-F1_GHZ = 400e3 + 0      # Ring 1 absolute resonance frequency (GHz)
+F1_GHZ = 400e3 + 8      # Ring 1 absolute resonance frequency (GHz)
 Q_I1   = 1e6         # Ring 1 intrinsic Q
-Q_E1   = 10e6         # Ring 1 extrinsic (waveguide coupling) Q
+Q_E1   = 1e6         # Ring 1 extrinsic (waveguide coupling) Q
 
-# Ring 2 properties
-F2_GHZ = 400e3 + 50      # Ring 2 absolute resonance frequency (GHz)
+# Ring 2 properes
+F2_GHZ = 400e3 - 8      # Ring 2 absolute resonance frequency (GHz)
 Q_I2   = 1e6         # Ring 2 intrinsic Q
 Q_E2   = 1e6         # Ring 2 extrinsic (waveguide coupling) Q
 
 # Probe (input) frequency — determines both detunings: Δ1 = F_PROBE - F1, Δ2 = F_PROBE - F2
 F_PROBE_GHZ = 400e3      # Fixed probe frequency (GHz) [used when probe is not swept]
-PHI         = 0.0        # Inter-ring phase shift (rad) [used when phi is not swept]
+PHI         = 2.4        # Inter-ring phase shift (rad) [used when phi is not swept]
 
 # Sweep ranges (used for whichever parameters are selected in PLOT_AXES)
-PROBE_RANGE_GHZ = (-5.0 + 400e3, 5.0 + 400e3)   # (min, max) probe frequency (GHz)
+PROBE_RANGE_GHZ = (-10.0 + 400e3, 10.0 + 400e3)   # (min, max) probe frequency (GHz)
 F1_RANGE_GHZ    = (-5.0 + 400e3, 5.0 + 400e3)   # (min, max) ring 1 resonance (GHz)
 F2_RANGE_GHZ    = (-5.0 + 400e3, 5.0 + 400e3)   # (min, max) ring 2 resonance (GHz)
 PHI_RANGE       = (0.0, 2*np.pi)                 # (min, max) phi (rad)
@@ -47,8 +47,10 @@ TOP_MM    = 8.0
 # Publication mode: suppresses all axis and tick labels when True
 FOR_PUBLICATION = False
 
-# Phase offset added to all computed phase values (rad)
-PHASE_OFFSET = 0
+# Phase display range: values are wrapped to [PHASE_MIN, PHASE_MIN + 2π)
+# Common choices: -2π (→ [-2π, 0]),  -π (→ [-π, π]),  0 (→ [0, 2π])
+PHASE_MIN    = - np.pi
+PHASE_OFFSET = 0   # additional offset applied before wrapping (rad)
 
 # 1D slice figure dimensions (mm)
 AXES_1D_HEIGHT_MM = 45.0   # height of each 1D panel
@@ -59,6 +61,25 @@ OUTPUT_FILENAME    = "coupled_ring_transmission.svg"
 OUTPUT_FILENAME_1D = "coupled_ring_transmission_1d.svg"
 
 # ============================================================
+
+
+def _pi_label(val):
+    """Format a value as a multiple of π for axis tick labels."""
+    from fractions import Fraction
+    frac = Fraction(val / np.pi).limit_denominator(16)
+    n, d = frac.numerator, frac.denominator
+    if n == 0:
+        return '0'
+    num_str = '' if abs(n) == 1 else str(abs(n))
+    sign    = '-' if n < 0 else ''
+    return f'{sign}{num_str}π' if d == 1 else f'{sign}{num_str}π/{d}'
+
+
+def _phase_ticks(phase_min, n=5):
+    """Return n evenly spaced tick positions and labels over [phase_min, phase_min+2π]."""
+    ticks  = np.linspace(phase_min, phase_min + 2*np.pi, n)
+    labels = [_pi_label(v) for v in ticks]
+    return ticks, labels
 
 
 def build_matrix(Delta1, Delta2, phi, gamma_i1, gamma_e1, gamma_i2, gamma_e2):
@@ -73,7 +94,7 @@ def build_matrix(Delta1, Delta2, phi, gamma_i1, gamma_e1, gamma_i2, gamma_e2):
     # ---- FILL IN MATRIX ELEMENTS BELOW --------------------------------
     M00 = 1j*Delta1 - gamma_i1 - 2*gamma_e1   # diagonal element for ring 1 (row 0, col 0)
     M01 = 2*np.sqrt(gamma_e1*gamma_e2)*np.exp(1j*phi)   # off-diagonal coupling into ring 1 from ring 2 (row 0, col 1)
-    M10 = 2*np.sqrt(gamma_e1*gamma_e2)*np.exp(1j*phi)   # off-diagonal coupling into ring 2 from ring 1 (row 1, col 0)
+    M10 = 2*np.sqrt(gamma_e1*gamma_e2)   # off-diagonal coupling into ring 2 from ring 1 (row 1, col 0)
     M11 = 1j * Delta2 - gamma_i2 - 2*gamma_e2   # diagonal element for ring 2 (row 1, col 1)
     # --------------------------------------------------------------------
 
@@ -102,7 +123,7 @@ def compute_output(a1, a2, gamma_e1, gamma_e2, phi):
 def solve(Delta1, Delta2, phi, gamma_i1, gamma_e1, gamma_i2, gamma_e2):
     """Invert M and return the complex output field across the parameter grid."""
     M = build_matrix(Delta1, Delta2, phi, gamma_i1, gamma_e1, gamma_i2, gamma_e2)
-    F = np.sqrt(2*gamma_e1)*np.array([1.0, -1.0], dtype=complex)
+    F = np.sqrt(2*gamma_e1)*np.array([-1.0, 1.0], dtype=complex)
     amps = np.linalg.solve(M, F)   # shape (..., 2)
     a1 = amps[..., 0]
     a2 = amps[..., 1]
@@ -160,7 +181,7 @@ def main():
         raise ValueError(f"Unknown PLOT_AXES value: {PLOT_AXES!r}")
 
     power = np.abs(t_out) ** 2
-    phase = (np.angle(t_out) + PHASE_OFFSET) % (2*np.pi) - 2*np.pi
+    phase = (np.angle(t_out) + PHASE_OFFSET - PHASE_MIN) % (2*np.pi) + PHASE_MIN
 
     extent = [x_axis[0], x_axis[-1], y_axis[0], y_axis[-1]]
 
@@ -194,14 +215,15 @@ def main():
 
     im_pow = ax_pow.imshow(power, origin='lower', aspect='auto', extent=extent,
                            vmin=0.0, vmax=1.0, cmap='inferno')
+    pha_ticks, pha_labels = _phase_ticks(PHASE_MIN)
     im_pha = ax_pha.imshow(phase, origin='lower', aspect='auto', extent=extent,
-                           vmin=-2*np.pi, vmax=0.0, cmap='twilight')
+                           vmin=PHASE_MIN, vmax=PHASE_MIN + 2*np.pi, cmap='twilight')
 
     cb_pow = fig.colorbar(im_pow, cax=cax_pow)
     cb_pow.set_ticks([0.0, 0.5, 1.0])
     cb_pha = fig.colorbar(im_pha, cax=cax_pha)
-    cb_pha.set_ticks([-2*np.pi, -3*np.pi/2, -np.pi, -np.pi/2, 0])
-    cb_pha.set_ticklabels(['-2π', '-3π/2', '-π', '-π/2', '0'])
+    cb_pha.set_ticks(pha_ticks)
+    cb_pha.set_ticklabels(pha_labels)
 
     for cb in (cb_pow, cb_pha):
         cb.outline.set_linewidth(2)
@@ -222,10 +244,10 @@ def main():
 
     # ---- 1D slice at phi = 0 ------------------------------------------------
     probe_1d = np.linspace(*PROBE_RANGE_GHZ, N_POINTS)
-    t_1d     = solve(probe_1d - F1_GHZ, probe_1d - F2_GHZ, 0.0,
+    t_1d     = solve(probe_1d - F1_GHZ, probe_1d - F2_GHZ, PHI,
                      gamma_i1, gamma_e1, gamma_i2, gamma_e2)
     power_1d = np.abs(t_1d) ** 2
-    phase_1d = (np.angle(t_1d) + PHASE_OFFSET) % (2*np.pi) - 2*np.pi
+    phase_1d = (np.angle(t_1d) + PHASE_OFFSET - PHASE_MIN) % (2*np.pi) + PHASE_MIN
 
     fig1d_w_mm = LEFT_MM + 2 * AXES_WIDTH_MM + PANEL_GAP_MM + RIGHT_MM
     fig1d_h_mm = BOTTOM_MM + AXES_1D_HEIGHT_MM + TOP_MM
@@ -246,16 +268,17 @@ def main():
     ax1d_pha.plot(probe_1d, phase_1d, color='k', linewidth=1.5)
 
     ax1d_pow.set_ylim(0.0, 1.0)
-    ax1d_pha.set_ylim(-2*np.pi, 0.0)
-    ax1d_pha.set_yticks([-2*np.pi, -3*np.pi/2, -np.pi, -np.pi/2, 0])
+    ax1d_pha.set_ylim(PHASE_MIN, PHASE_MIN + 2*np.pi)
+    ax1d_pha.set_yticks(pha_ticks)
 
     style_ax(ax1d_pow, 'f_probe (GHz)', '|T|²')
     style_ax(ax1d_pha, 'f_probe (GHz)', '∠T (rad)')
 
     if not FOR_PUBLICATION:
-        ax1d_pow.set_title('Power  (φ = 0)',  fontsize=10)
-        ax1d_pha.set_title('Phase  (φ = 0)',  fontsize=10)
-        ax1d_pha.set_yticklabels(['-2π', '-3π/2', '-π', '-π/2', '0'], fontsize=8)
+        phi_str = _pi_label(PHI) if PHI != 0 else '0'
+        ax1d_pow.set_title(f'Power  (φ = {phi_str})',  fontsize=10)
+        ax1d_pha.set_title(f'Phase  (φ = {phi_str})',  fontsize=10)
+        ax1d_pha.set_yticklabels(pha_labels, fontsize=8)
 
     out_path_1d = os.path.join(MEDIA_DIR, OUTPUT_FILENAME_1D)
     fig1d.savefig(out_path_1d, format='svg')

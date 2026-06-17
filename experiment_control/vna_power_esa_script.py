@@ -8,6 +8,7 @@ as individual CSV files in a timestamped folder.
 
 from vna_control import VNA
 from esa_control import ESA
+from cxa_control import CXA
 from esa_sweep_data import PowerSweepData
 import os
 import time
@@ -17,6 +18,7 @@ import matplotlib.pyplot as plt
 
 VNA_RESOURCE_STRING = 'TCPIP0::Localhost::hislip0::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
+CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
 DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data"
 
@@ -31,6 +33,7 @@ def vna_power_esa_sweep(
     esa_ref_level: float = 0.0,
     settle_time_s: float = 0.1,
     optional_name: str = '',
+    use_cxa: bool = False,
 ):
     """
     Step the VNA through output powers at a fixed CW frequency and record
@@ -74,7 +77,8 @@ def vna_power_esa_sweep(
     esa_freqs = None
 
     try:
-        with VNA(VNA_RESOURCE_STRING) as vna, ESA(ESA_RESOURCE_STRING) as esa:
+        esa_cls, esa_addr = (CXA, CXA_RESOURCE_STRING) if use_cxa else (ESA, ESA_RESOURCE_STRING)
+        with VNA(VNA_RESOURCE_STRING) as vna, esa_cls(esa_addr) as esa:
 
             esa.configure(
                 start_freq=esa_start_freq,
@@ -138,7 +142,7 @@ def main():
     cw_powers = np.linspace(-20, 10, 30)  # -20 to +10 dBm in 1 dB steps
 
     filepath = vna_power_esa_sweep(
-        cw_freq=2.533e9,
+        cw_freq=2.32e9,
         cw_powers=cw_powers,
         esa_start_freq=2e9,
         esa_stop_freq=8e9,
@@ -147,6 +151,7 @@ def main():
         esa_ref_level=-40,
         settle_time_s=0.1,
         optional_name='libbu2_w15_die1-2_mzm_c3_',
+        use_cxa=True
     )
 
     fig, ax = plot_power_esa_results(filepath, ymin=-120, ymax=-80)

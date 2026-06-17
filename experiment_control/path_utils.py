@@ -10,37 +10,44 @@ from config import DATA_DIR
 
 
 def local_path(copied_path: str) -> str:
-    """Convert a Windows 'Copy as path' string from any machine to the local equivalent.
+    """Convert a Windows path from any machine to the local equivalent.
 
-    Windows Explorer's "Copy as path" produces a quoted absolute path specific to
-    that machine (e.g. a different username in C:\\Users\\<name>\\...). This function
-    strips the quotes, then finds the longest trailing portion of DATA_DIR that
-    appears as a contiguous sequence inside the given path (case-insensitive).
-    This lets it work even when the leading components (drive, username) differ
-    across machines.
+    Replaces the C:\\Users\\<other_username> prefix with the local
+    C:\\Users\\<local_username> (taken from DATA_DIR in config.py).
+    This lets paths copied from another machine or user account resolve
+    correctly here, regardless of drive letter or username differences.
+
+    If no 'Users' component is found in the given path it is returned
+    unchanged (it may already be a valid local path).
 
     Usage::
 
         from path_utils import local_path
-        DATA_FILE = local_path(r'"C:\\Users\\other_user\\OneDrive - UCB-O365\\...\\data\\myfile.csv"')
+        DATA_FILE = local_path(r'C:\\Users\\other_user\\OneDrive - UCB-O365\\...\\myfile.npz')
     """
     p = Path(copied_path.strip().strip('"'))
-    data_dir = Path(DATA_DIR)
-    data_parts = data_dir.parts
     p_parts = p.parts
 
-    # Try matching suffixes of data_parts (longest first) against a window in p_parts.
-    for suffix_len in range(len(data_parts), 0, -1):
-        suffix = data_parts[len(data_parts) - suffix_len:]
-        window_size = len(suffix)
-        for i in range(len(p_parts) - window_size + 1):
-            if all(a.lower() == b.lower() for a, b in zip(p_parts[i:i + window_size], suffix)):
-                rel_parts = p_parts[i + window_size:]
-                result = data_dir.joinpath(*rel_parts) if rel_parts else data_dir
-                return str(result)
-
-    raise ValueError(
-        f"Could not locate any part of DATA_DIR structure in the given path.\n"
-        f"  Given   : {p}\n"
-        f"  DATA_DIR: {data_dir}"
+    # Find 'Users' in the given path
+    p_users_idx = next(
+        (i for i, part in enumerate(p_parts) if part.lower() == 'users'),
+        None,
     )
+    if p_users_idx is None or p_users_idx + 1 >= len(p_parts):
+        return str(p)
+
+    # Find 'Users' in the local DATA_DIR to get the local username prefix
+    local_parts = Path(DATA_DIR).parts
+    local_users_idx = next(
+        (i for i, part in enumerate(local_parts) if part.lower() == 'users'),
+        None,
+    )
+    if local_users_idx is None or local_users_idx + 1 >= len(local_parts):
+        return str(p)
+
+    # Replace drive + Users + <username> with local equivalents; keep the rest
+    local_prefix = local_parts[:local_users_idx + 2]   # e.g. ('C:\\', 'Users', 'acous')
+    remainder    = p_parts[p_users_idx + 2:]            # everything after <other_username>
+
+    result = Path(*local_prefix, *remainder) if remainder else Path(*local_prefix)
+    return str(result)

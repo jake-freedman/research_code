@@ -1,12 +1,16 @@
 """
-VNA CW frequency sweep with harmonic-tracking ESA.
+BNC 855B CW frequency sweep with harmonic-tracking ESA.
 
-For each VNA CW frequency the ESA records a narrow spectrum centred on each
+Mirrors vna_cw_harmonic_esa_script.py but uses the BNC 855B-12 signal
+generator (channel 1) as the CW source instead of the VNA.
+
+For each drive frequency the ESA records a narrow spectrum centred on each
 requested harmonic of that frequency. All data is saved as a single .npz file
-that can be loaded by HarmonicSweepData in harmonic_sweep_data.py.
+that is fully compatible with HarmonicSweepData and HeterodyneSweepData in
+the existing analysis scripts.
 """
 
-from vna_control import VNA
+from bnc_control import BNC855B
 from esa_control import ESA
 from cxa_control import CXA
 from harmonic_sweep_data import HarmonicSweepData
@@ -17,31 +21,20 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 
-VNA_RESOURCE_STRING = 'TCPIP0::Localhost::hislip0::INSTR'
+BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5"
 
 
-def _reset_vna(vna) -> None:
-    """Return the VNA to a safe low-power frequency sweep on continuous trigger."""
-    vna.configure(
-        start_freq=100e6,
-        stop_freq=5e9,
-        freq_step=10e6,
-        power_dbm=-20.0,
-    )
-    vna._inst.write('SENS1:SWE:MODE CONT')
-
-
-def vna_cw_harmonic_sweep(
+def bnc_cw_harmonic_sweep(
     cw_freqs,
     cw_power: float,
     harmonics=(0, 1),
     window_hz: float = 2e6,
     esa_freq_step: float = 1e6,
-    esa_res_bw: float = 1000e3,
+    esa_res_bw: float = 100e3,
     esa_ref_level: float = 0.0,
     settle_time_s: float = 0.1,
     optional_name: str = '',
@@ -49,20 +42,22 @@ def vna_cw_harmonic_sweep(
     plot: bool = True,
 ) -> str:
     """
-    Step the VNA through CW frequencies and record a narrow ESA spectrum around
-    each harmonic of the drive frequency at every step.
+    Step the BNC 855B through CW frequencies (channel 1) and record a narrow
+    ESA spectrum around each harmonic of the drive frequency at every step.
+
+    Data is saved in the same .npz format as vna_cw_harmonic_esa_script.py
+    and can be loaded by HarmonicSweepData.
 
     Parameters
     ----------
     cw_freqs : array-like
-        VNA CW frequencies in Hz.
+        BNC channel 1 frequencies in Hz.
     cw_power : float
-        VNA output power in dBm.
+        BNC channel 1 output power in dBm.
     harmonics : sequence of int
         Harmonic numbers to record. Default (1, 2, 3).
     window_hz : float
-        Half-width of each harmonic window in Hz. The ESA sweeps
-        [n*f_cw - window_hz, n*f_cw + window_hz]. Default 2 MHz.
+        Half-width of each harmonic window in Hz. Default 2 MHz.
     esa_freq_step : float
         Frequency step within each harmonic window in Hz. Default 1 MHz.
     esa_res_bw : float
@@ -73,6 +68,10 @@ def vna_cw_harmonic_sweep(
         Wait time after setting each CW frequency. Default 0.1 s.
     optional_name : str
         Label prepended to the saved filename.
+    use_cxa : bool
+        If True, use the Keysight CXA instead of the R&S ESA. Default False.
+    plot : bool
+        If True, plot harmonic spectra and modulation depth after saving.
 
     Returns
     -------
@@ -82,7 +81,7 @@ def vna_cw_harmonic_sweep(
     cw_freqs = np.asarray(cw_freqs)
     harmonics = list(harmonics)
     print(
-        f"Starting harmonic sweep: {len(cw_freqs)} CW steps "
+        f"Starting BNC harmonic sweep: {len(cw_freqs)} CW steps "
         f"({cw_freqs[0] / 1e9:.4f} to {cw_freqs[-1] / 1e9:.4f} GHz), "
         f"harmonics {harmonics}, window ±{window_hz / 1e6:.1f} MHz"
     )
@@ -94,22 +93,23 @@ def vna_cw_harmonic_sweep(
     )
     full_path = os.path.join(DATA_FOLDER, fname)
 
-    # all_spectra[i][j] = 1-D power array for cw_freqs[i], harmonics[j]
     all_spectra = []
-    offsets_hz = None  # determined from the first sweep
+    offsets_hz = None
 
     try:
         esa_cls, esa_addr = (CXA, CXA_RESOURCE_STRING) if use_cxa else (ESA, ESA_RESOURCE_STRING)
-        with VNA(VNA_RESOURCE_STRING) as vna, esa_cls(esa_addr) as esa:
-            vna.set_cw_mode(cw_freqs[0], cw_power)
+        with BNC855B(BNC_RESOURCE_STRING) as sig, esa_cls(esa_addr) as esa:
+            sig.disable_all_outputs()
+            sig.configure_channel(1, cw_freqs[0], cw_power)
+            sig.enable_output(1)
 
             for i, f_cw in enumerate(cw_freqs):
-                vna.set_cw_freq(f_cw)
+                sig.set_frequency(1, f_cw)
                 time.sleep(settle_time_s)
 
                 harmonic_spectra = []
                 for n in harmonics:
-                    center = n * f_cw
+                    center = abs(n * f_cw)
                     esa.configure(
                         start_freq=center - window_hz,
                         stop_freq=center + window_hz,
@@ -131,16 +131,12 @@ def vna_cw_harmonic_sweep(
                     f"{f_cw / 1e9:.4f} GHz done."
                 )
 
-            _reset_vna(vna)
-
     except Exception as exc:
         print(f"ERROR at step {len(all_spectra) + 1}/{len(cw_freqs)}: {exc}")
         if not all_spectra:
             raise
         print(f"Saving partial data ({len(all_spectra)} of {len(cw_freqs)} steps)...")
 
-    # Stack to (M, N, K), truncating to the reference K if any sweep returned
-    # a different length (instrument snapping).
     K = len(offsets_hz)
     spectra_arr = np.array([[s[:K] for s in row] for row in all_spectra])
     completed_freqs = cw_freqs[:len(all_spectra)]
@@ -155,9 +151,7 @@ def vna_cw_harmonic_sweep(
         spectra=spectra_arr,
     )
 
-    print(
-        f"Done. Saved {len(all_spectra)}/{len(cw_freqs)} steps to {full_path}"
-    )
+    print(f"Done. Saved {len(all_spectra)}/{len(cw_freqs)} steps to {full_path}")
     if plot:
         data = HarmonicSweepData.from_file(full_path)
         data.plot_modulation_depth()
@@ -166,7 +160,7 @@ def vna_cw_harmonic_sweep(
     return full_path
 
 
-def vna_cw_heterodyne_sweep(
+def bnc_cw_heterodyne_sweep(
     cw_freqs,
     cw_power: float,
     heterodyne_shift: float = 125e6,
@@ -181,21 +175,23 @@ def vna_cw_heterodyne_sweep(
     plot: bool = True,
 ) -> str:
     """
-    Step the VNA through CW frequencies and record a narrow ESA spectrum centred
-    on n*f_cw + heterodyne_shift for each requested harmonic n.
+    Step the BNC 855B through CW frequencies (channel 1) and record a narrow
+    ESA spectrum centred on n*f_cw + heterodyne_shift for each harmonic n.
 
     Harmonic 0 records the carrier beat at heterodyne_shift itself, which is
     needed to extract modulation depth via J1(β)/J0(β).
 
+    Data is saved in the same .npz format as vna_cw_heterodyne_sweep() and
+    can be loaded by HeterodyneSweepData.
+
     Parameters
     ----------
     cw_freqs : array-like
-        VNA CW frequencies in Hz.
+        BNC channel 1 frequencies in Hz.
     cw_power : float
-        VNA output power in dBm.
+        BNC channel 1 output power in dBm.
     heterodyne_shift : float
-        Offset of the LO from the signal, in Hz. ESA centre for harmonic n is
-        n*f_cw + heterodyne_shift. Default 125 MHz.
+        Offset of the LO from the signal in Hz. Default 125 MHz.
     harmonics : sequence of int
         Harmonic numbers to record. 0 = carrier beat. Default (0, 1, 2, 3).
     window_hz : float
@@ -210,6 +206,10 @@ def vna_cw_heterodyne_sweep(
         Wait time after setting each CW frequency. Default 0.1 s.
     optional_name : str
         Label prepended to the saved filename.
+    use_cxa : bool
+        If True, use the Keysight CXA instead of the R&S ESA. Default False.
+    plot : bool
+        If True, plot peak powers and modulation depth after saving.
 
     Returns
     -------
@@ -219,7 +219,7 @@ def vna_cw_heterodyne_sweep(
     cw_freqs = np.asarray(cw_freqs)
     harmonics = list(harmonics)
     print(
-        f"Starting heterodyne sweep: {len(cw_freqs)} CW steps "
+        f"Starting BNC heterodyne sweep: {len(cw_freqs)} CW steps "
         f"({cw_freqs[0] / 1e9:.4f} to {cw_freqs[-1] / 1e9:.4f} GHz), "
         f"harmonics {harmonics}, shift {heterodyne_shift / 1e6:.1f} MHz, "
         f"window ±{window_hz / 1e6:.1f} MHz"
@@ -237,15 +237,17 @@ def vna_cw_heterodyne_sweep(
 
     try:
         esa_cls, esa_addr = (CXA, CXA_RESOURCE_STRING) if use_cxa else (ESA, ESA_RESOURCE_STRING)
-        with VNA(VNA_RESOURCE_STRING) as vna, esa_cls(esa_addr) as esa:
-            vna.set_cw_mode(cw_freqs[0], cw_power)
+        with BNC855B(BNC_RESOURCE_STRING) as sig, esa_cls(esa_addr) as esa:
+            sig.disable_all_outputs()
+            sig.configure_channel(1, cw_freqs[0], cw_power)
+            sig.enable_output(1)
 
             for i, f_cw in enumerate(cw_freqs):
-                vna.set_cw_freq(f_cw)
+                sig.set_frequency(1, f_cw)
 
                 harmonic_spectra = []
                 for n in harmonics:
-                    center = n * f_cw + heterodyne_shift
+                    center = abs(n * f_cw + heterodyne_shift)
                     esa.configure(
                         start_freq=center - window_hz,
                         stop_freq=center + window_hz,
@@ -269,8 +271,6 @@ def vna_cw_heterodyne_sweep(
                     f"{f_cw / 1e9:.4f} GHz done."
                 )
 
-            _reset_vna(vna)
-
     except Exception as exc:
         print(f"ERROR at step {len(all_spectra) + 1}/{len(cw_freqs)}: {exc}")
         if not all_spectra:
@@ -292,9 +292,7 @@ def vna_cw_heterodyne_sweep(
         spectra=spectra_arr,
     )
 
-    print(
-        f"Done. Saved {len(all_spectra)}/{len(cw_freqs)} steps to {full_path}"
-    )
+    print(f"Done. Saved {len(all_spectra)}/{len(cw_freqs)} steps to {full_path}")
     if plot:
         data = HeterodyneSweepData.from_file(full_path)
         data.plot_peak_powers()
@@ -304,25 +302,14 @@ def vna_cw_heterodyne_sweep(
 
 
 def main():
-    center_freq =  1*1.145e9
+    center_freq = 1.145e9
     span = 100e6
-    cw_freqs = np.linspace(center_freq - span/2, center_freq + span/2, 50)
+    # cw_freqs = np.linspace(center_freq - span / 2, center_freq + span / 2, 50)
+    cw_freqs = np.linspace(100e6, 3.5e9, 3500)
 
-    # vna_cw_harmonic_sweep(
-    #     cw_freqs=cw_freqs,
-    #     cw_power=10,
-    #     harmonics=(1, 2, 3),
-    #     window_hz=2e6,
-    #     esa_freq_step=1e6,
-    #     esa_res_bw=10e3,
-    #     esa_ref_level=-40,
-    #     settle_time_s=0.05,
-    #     optional_name='libbu2_w15_die1-2_mzm_c3_',
-    # )
-
-    vna_cw_heterodyne_sweep(
+    bnc_cw_heterodyne_sweep(
         cw_freqs=cw_freqs,
-        cw_power=10,
+        cw_power=5,
         heterodyne_shift=125e6,
         harmonics=(0, 1),
         window_hz=2e6,
@@ -330,8 +317,8 @@ def main():
         esa_res_bw=10e3,
         esa_ref_level=-40,
         settle_time_s=0.01,
-        optional_name='test',
-        use_cxa=True
+        optional_name='test_',
+        use_cxa=True,
     )
 
 

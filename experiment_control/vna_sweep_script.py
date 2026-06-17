@@ -21,11 +21,11 @@ VNA_RESOURCE_STRING = 'TCPIP0::Localhost::hislip0::INSTR'
 
 def main():
 
-    plot_from_file()
+    # plot_from_file()
 
     # mzm_stability_test(n = 5, delay_s = 1.0)
 
-    folder_path = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data"
+    folder_path = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data"
 
     # fig, ax = plot_stability_s21(
     #     r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\mzm_stability_test_2026-04-01-11-24-53",
@@ -39,25 +39,25 @@ def main():
 
     # print(pyvisa.ResourceManager().list_resources())
 
-    # with VNA(VNA_RESOURCE_STRING) as vna:
+    with VNA(VNA_RESOURCE_STRING) as vna:
 
 
 
-    #     vna.configure(
-    #         start_freq = 0.1e9,
-    #         stop_freq = 5e9,
-    #         freq_step = 1e6,
-    #         power_dbm = 10,
-    #         ifbw = 1000,
-    #         cal_set = 'CalSet_1'
-    #     )
+        vna.configure(
+            start_freq = 0.1e9,
+            stop_freq = 10e9,
+            freq_step = 0.5e6,
+            power_dbm = 0,
+            ifbw = 1000,
+            cal_set = 'CH1_CALREG'
+        )
 
-    #     vna.apply_calibration()
+        vna.apply_calibration()
 
-    #     freqs, s11, s21 = vna.sweep_s11_s21()
-    #     path = vna.save_s11_s21(freqs, s11, s21, folder=folder_path, optional_name='libbu2_w15_die1-2_mzm_c3')
-    #     vna.plot_s11_s21(freqs, s11, s21, s21_ymin=-130, s21_ymax=-60, s11_ymin=-30, s11_ymax=1, xmin=0, xmax=5.1)
-    #     plt.show()
+        freqs, s11 = vna.sweep_s11()
+        path = vna.save_s11(freqs, s11, folder=folder_path, optional_name='w2_d21_wg5a_p5_')
+        vna.plot_s11(freqs, s11, ymin=-15, ymax=1)
+        plt.show()
 
     #     freqs, s11 = vna.sweep_s11()
     #     path = vna.save_s11(freqs, s11, folder = folder_path, optional_name = 'libbu2_w15_die1-2_mzm_c2')

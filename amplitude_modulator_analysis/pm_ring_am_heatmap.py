@@ -45,7 +45,7 @@ from scipy.ndimage import maximum_filter
 
 # --- Modulation ---
 OMEGA_MOD_HZ = 2.5e9       # Modulation frequency in Hz
-HARMONIC_M   = [4]         # Which intensity harmonic to display (integer >= 1)
+HARMONIC_M   = [2]         # Which intensity harmonic to display (integer >= 1)
 
 # --- Phase modulation depth ---
 BETA          = 1.5       # Modulation depth (rad);  used when OPTIMIZE_BETA = False

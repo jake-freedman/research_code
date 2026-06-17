@@ -14,7 +14,7 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\libbu2_w15_die1-2_mzm_c3_power_sweep_2026-04-01-16-35-43.csv"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\test_power_harmonic_sweep_2026-06-11-17-54-52.npz"
 
 # Frequency window for peak search (Hz)
 FREQ_MIN = 5e9

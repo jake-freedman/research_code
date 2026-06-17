@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 vna_sweep_script.py)"
+      "Bash(python3 vna_sweep_script.py)",
+      "WebSearch",
+      "WebFetch(domain:www.transcat.com)",
+      "WebFetch(domain:www.keysight.com)"
     ]
   }
 }

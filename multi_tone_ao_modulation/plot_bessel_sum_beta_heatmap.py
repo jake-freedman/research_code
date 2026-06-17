@@ -10,11 +10,11 @@ BETA2_MAX = 5.0
 
 # False: sum_k J_{2k+1}(b1) * J_{-k}(b2)   * exp(i[(2k+1)*phi1 - k*phi2])
 # True:  sum_k J_{2k}(b1)   * J_{1-k}(b2)  * exp(i[2k*phi1 + (1-k)*phi2])
-is_second_harmonic = False
+is_second_harmonic = True
 
-N_BETA  = 200   # grid points along each beta axis
-N_PHI1  = 400   # phi1 grid points (only used when FIX_PHI1=False)
-N_PHI2  = 400   # phi2 grid points (only used when FIX_PHI2=False)
+N_BETA  = 100   # grid points along each beta axis
+N_PHI1  = 100   # phi1 grid points (only used when FIX_PHI1=False)
+N_PHI2  = 100   # phi2 grid points (only used when FIX_PHI2=False)
 K_TRUNC = int(2 * max(BETA1_MAX, BETA2_MAX)) + 20
 
 FIX_PHI1    = True    # if True, phi1 is held at PHI1_FIXED instead of optimized

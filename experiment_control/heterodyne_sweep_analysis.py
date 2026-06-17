@@ -11,7 +11,7 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data\libbu2_w16_die1-2_lpm_4_heterodyne_sweep_2026-04-07-15-11-37.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\test_heterodyne_sweep_2026-06-17-16-20-31.npz"
 # Harmonic pair for β extraction.
 # Default: J1(β)/J0(β) — 1st harmonic over carrier beat.
 HARMONIC_NUMERATOR = 1

@@ -20,7 +20,7 @@ DE_MAXITER = 2000   # max generations
 DE_TOL     = 1e-10  # convergence tolerance
 DE_SEED    = 42
 
-FIX_PHI1 = True   # if True, phi1 is held at 0 and not optimized
+FIX_PHI1 = False   # if True, phi1 is held at 0 and not optimized
 # ─────────────────────────────────────────────────────────────────────────────
 
 
