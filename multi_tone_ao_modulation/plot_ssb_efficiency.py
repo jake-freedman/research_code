@@ -9,6 +9,7 @@ OMEGA    = 1.0      # angular frequency of the sawtooth (rad/s)
 BETA     = np.pi    # sawtooth amplitude — pi gives perfect SSB for ideal wave
 N_MAX    = 10       # maximum truncation order to evaluate
 N_POINTS = 20000    # time-domain samples per period (must be >> N_MAX)
+PLOT_EFFICIENCY_ONLY = True   # True → show only the |C_1|^2 panel
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── graphics style ────────────────────────────────────────────────────────────
@@ -22,9 +23,7 @@ axes_height_mm = 55.0    # per subplot
 left_mm, right_mm  = 22.0, 5.0
 between_mm         = 8.0
 bottom_mm, top_mm  = 12.0, 5.0
-n_rows = 3
 fig_w  = left_mm + axes_width_mm + right_mm
-fig_h  = bottom_mm + n_rows * axes_height_mm + (n_rows - 1) * between_mm + top_mm
 spine_linewidth    = 2.0
 tick_width         = 2.0
 tick_direction     = 'in'
@@ -70,12 +69,23 @@ for idx in range(N_MAX):
     if N % 2 == 0:
         even_spectra[N] = np.abs(C[fft_indices]) ** 2
 
+    # Print beta and phase for each term up to current N
+    terms_str = '  '.join(
+        f'n={n}: β={abs(c):.4f}, φ={"π" if c < 0 else "0"}'
+        for n, c in zip(range(1, N + 1), coeffs_n[:N])
+    )
+    print(f'N={N:2d}: {terms_str}')
+
 N_vals = np.arange(1, N_MAX + 1)
 
 # ── plot ──────────────────────────────────────────────────────────────────────
+n_rows   = 1 if PLOT_EFFICIENCY_ONLY else 3
+fig_h    = bottom_mm + n_rows * axes_height_mm + (n_rows - 1) * between_mm + top_mm
 fig_w_in = fig_w / 25.4
 fig_h_in = fig_h / 25.4
-fig, axes = plt.subplots(3, 1, figsize=(fig_w_in, fig_h_in))
+
+fig, axes_raw = plt.subplots(n_rows, 1, figsize=(fig_w_in, fig_h_in))
+axes = [axes_raw] if n_rows == 1 else list(axes_raw)
 
 # compute subplot positions manually to match graphics style
 ax_h_frac  = axes_height_mm / fig_h
@@ -83,49 +93,48 @@ gap_frac   = between_mm     / fig_h
 left_frac  = left_mm        / fig_w
 right_frac = 1 - right_mm   / fig_w
 bot_frac   = bottom_mm      / fig_h
-top_frac   = 1 - top_mm     / fig_h
 
-# bottom edges of the three axes (bottom to top in figure coords)
-bot_edges = [
+all_bot_edges = [
     bot_frac,
     bot_frac + ax_h_frac + gap_frac,
     bot_frac + 2 * (ax_h_frac + gap_frac),
 ]
 
-for ax, bot in zip(axes, reversed(bot_edges)):
+for ax, bot in zip(axes, reversed(all_bot_edges[:n_rows])):
     ax.set_position([left_frac, bot, right_frac - left_frac, ax_h_frac])
 
 marker_kw = dict(marker='o', markersize=3, linewidth=1.5)
 
-axes[0].plot(N_vals, efficiency,       color=BLUE2,     **marker_kw)
+axes[0].plot(N_vals, efficiency, color=BLUE2, **marker_kw)
 for n, eff in zip(N_vals, efficiency):
     if n % 2 == 0:
         axes[0].annotate(f'{eff*100:.1f}%',
                          xy=(n, eff), xytext=(4, 4),
                          textcoords='offset points',
                          fontsize=10, color=BLUE2)
-axes[1].plot(N_vals, carrier_dB,       color=GREEN2,    **marker_kw)
-axes[2].plot(N_vals, minus1_dB,        color=RED2,      **marker_kw)
-
-axes[0].set_ylabel(r'$|c_1|^2$',              fontsize=axis_label_fontsize)
-axes[1].set_ylabel(r'Carrier suppression (dB)',    fontsize=axis_label_fontsize)
-axes[2].set_ylabel(r'$-1$ sideband suppression (dB)', fontsize=axis_label_fontsize)
-axes[2].set_xlabel('Truncation order $N$',     fontsize=axis_label_fontsize)
-
+axes[0].set_ylabel(r'$|c_1|^2$', fontsize=axis_label_fontsize)
 axes[0].set_ylim(0, 1.05)
 axes[0].axhline(1.0, color=DARKGRAY2, linewidth=0.8, linestyle='--')
 
+if not PLOT_EFFICIENCY_ONLY:
+    axes[1].plot(N_vals, carrier_dB, color=GREEN2, **marker_kw)
+    axes[2].plot(N_vals, minus1_dB,  color=RED2,   **marker_kw)
+    axes[1].set_ylabel(r'Carrier suppression (dB)',        fontsize=axis_label_fontsize)
+    axes[2].set_ylabel(r'$-1$ sideband suppression (dB)', fontsize=axis_label_fontsize)
+    axes[2].set_xlabel('Truncation order $N$',             fontsize=axis_label_fontsize)
+    for ax in axes[:2]:
+        ax.tick_params(labelbottom=False)
+else:
+    axes[0].set_xlabel('Truncation order $N$', fontsize=axis_label_fontsize)
+
 for ax in axes:
-    ax.set_xlim(0, N_MAX+1)
+    ax.set_xlim(0, N_MAX + 1)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     for spine in ax.spines.values():
         spine.set_linewidth(spine_linewidth)
     ax.tick_params(axis='both', direction=tick_direction,
                    width=tick_width, labelsize=tick_label_fontsize)
-
-# hide x tick labels on top two axes
-for ax in axes[:2]:
-    ax.tick_params(labelbottom=False)
+    ax.grid(True, color=DARKGRAY2, linewidth=0.5, linestyle=':', alpha=0.6)
 
 out_path = Path(__file__).parent / 'ssb_efficiency.png'
 fig.savefig(out_path, dpi=200, bbox_inches='tight')

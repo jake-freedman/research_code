@@ -45,7 +45,7 @@ BETA_MAX        = 10.0     # upper bound on each beta_k (rad)
 N_MAX           = 30      # harmonic truncation order
 N_TONES         = 10      # number of RF drive tones (k = 1 .. N_TONES)
 N_ITER          = 100     # basin-hopping iterations
-SEED            = 1    # integer for reproducibility, or None for random
+SEED            = 2    # integer for reproducibility, or None for random
 OBJECTIVE       = "power" # "power": maximise power at wanted harmonic
                           # "ratio": minimise unwanted/wanted power ratio
 METHOD          = "fft"   # "fft" : time-domain FFT (fast, ~1e-10 accuracy)
