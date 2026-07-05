@@ -518,9 +518,10 @@ def main():
 
     # Example: sweep channel 2 phase 0–360°, all other params fixed
     drive_freqs    = np.ones(M) * f0
-    ch1_powers_dbm = np.ones(M) * (23)
-    # ch1_powers_dbm = np.linspace(-10, 23, M)
-    ch2_powers_dbm = np.ones(M) * 7.5
+    ch1_powers_dbm = np.ones(M) * (23.3)
+    # ch1_powers_dbm = np.linspace(0, 23.5, M)
+    ch2_powers_dbm = np.ones(M) * 7.6
+    # ch2_powers_dbm = np.linspace(-10, 15, M)
     ch1_phases_deg = np.ones(M) * 0.0
     # ch2_phases_deg = np.ones(M) * 100
     ch2_phases_deg = np.linspace(0, 360, M, endpoint=True)
@@ -531,21 +532,22 @@ def main():
         ch2_powers_dbm=ch2_powers_dbm,
         ch1_phases_deg=ch1_phases_deg,
         ch2_phases_deg=ch2_phases_deg,
-        harmonics=(-3, -2, -1, 0, 1, 2, 3),
+        harmonics=(-2, -1,0,1, 2),
         heterodyne_shift=125e6,
-        window_hz=2e6,
-        esa_freq_step=0.25e6,
+        window_hz=1e6,
+        esa_freq_step=2e6/1000,
         esa_res_bw=10e3,
-        esa_ref_level=-40,
+        esa_ref_level=-20,
         settle_time_s=0.05,
         optional_name='phase_sweep_',
         use_cxa=True,
         per_step_calibration=False,
         averages_per_point=1,
-        n_sweep_repeats=5,
+        n_sweep_repeats=1,
         sideband_sum_calibration=True,
         ch2_enabled=True,
         ch1_enabled=True,
+        save_raw_averages=True,
     )
 
 

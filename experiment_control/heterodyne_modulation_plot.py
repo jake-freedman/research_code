@@ -77,14 +77,16 @@ bottom_mm = _bottom_mm
 top_mm    = _top_mm
 linewidth  = 3
 COLOR      = '#cccccc'
-FILL_ALPHA = 0.5
+FILL_ALPHA       = 0.5   # alpha below the decay start
+FILL_ALPHA_TOP   = 0.1   # alpha at the top of the axes (fill decays toward this)
+FILL_DECAY_START = 40    # y-value at which the alpha begins to decay (same for all x)
 SHOW_MARKERS = False
 MARKERSIZE   = 4.0
 SHOW_GRID    = False
 
 # ── publication export ────────────────────────────────────────────────────────
 FOR_PUBLICATION = True
-SAVE_PATH = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq.svg"
+SAVE_PATH = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq.svg"
 
 # ── zoom plot ─────────────────────────────────────────────────────────────────
 # Overlays the main curve in ZOOM_XMIN–ZOOM_XMAX with a second series whose
@@ -97,7 +99,7 @@ ZOOM_YMIN           = 5
 ZOOM_YMAX           = 60
 ZOOM_AXES_WIDTH_MM  = 40
 ZOOM_AXES_HEIGHT_MM = 20
-ZOOM_SAVE_PATH      = r"C:\Users\12242\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq_inset.svg"
+ZOOM_SAVE_PATH      = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq_inset.svg"
 ZOOM_DBL_LINESTYLE  = '--'   # linestyle for the doubled-frequency overlay ('-', '--', ':', '-.')
 ZOOM_DBL_FILL       = False  # whether to draw the fill for the doubled-frequency overlay
 # ─────────────────────────────────────────────────────────────────────────────
@@ -169,7 +171,11 @@ def _draw_series(ax, freqs_ghz, y, pt_colors, y_bot, y_top,
         y_vals = np.linspace(y_bot, y_top, n_rows)
         fill_rgba = np.zeros((n_rows, len(freqs_ghz), 4))
         fill_rgba[:, :, :3] = pt_colors[None, :, :]
-        fill_rgba[:, :, 3] = (y_vals[:, None] >= y[None, :]) * FILL_ALPHA
+        above    = y_vals[:, None] >= y[None, :]
+        y_span   = max(y_top - FILL_DECAY_START, 1e-9)
+        frac     = np.clip((y_vals[:, None] - FILL_DECAY_START) / y_span, 0.0, 1.0)
+        alpha    = FILL_ALPHA + (FILL_ALPHA_TOP - FILL_ALPHA) * frac
+        fill_rgba[:, :, 3] = np.where(above, alpha, 0.0)
         ax.imshow(fill_rgba, aspect='auto',
                   extent=[freqs_ghz[0], freqs_ghz[-1], y_bot, y_top],
                   origin='lower', interpolation='nearest', zorder=1)

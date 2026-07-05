@@ -35,7 +35,7 @@ from scipy.special import jn as bessel_jn
 
 from graphics import (
     BLUE2, DARKGRAY2, RED2, GREEN2, DARKBLUE2,
-    VIOLET2, ORANGE2, PINK2, TAN2, DARKGREEN2,
+    VIOLET2, ORANGE2, PINK2, TAN2, DARKGREEN2, LIGHTBLUE2,
     spine_linewidth, tick_width, tick_direction,
     axis_label_fontsize, tick_label_fontsize,
     axes_width_mm as _default_axes_w,
@@ -44,8 +44,16 @@ from graphics import (
     bottom_mm as _bottom_mm, top_mm as _top_mm,
 )
 
-_HARMONIC_COLORS = {0: DARKGRAY2, 1: RED2, 2: GREEN2, 3: BLUE2}
-_EXTRA_COLORS    = [VIOLET2, ORANGE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2]
+_HARMONIC_COLORS = {
+    -3: '#bf7362',
+    -2: RED2,
+    -1: ORANGE2,
+     0: GREEN2,
+     1: LIGHTBLUE2,
+     2: '#5c70aa',
+     3: VIOLET2,
+}
+_EXTRA_COLORS = [BLUE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2, DARKGRAY2]
 
 # dBm → V_rms at 50 Ω:  V = 10^((P_dBm - 10·log10(20)) / 20)
 _LOG20 = 10.0 * np.log10(20.0)
@@ -307,6 +315,8 @@ class DualToneSweepData:
         ymax: float | None = None,
         show_error: bool = False,
         show_points: bool = False,
+        harmonics: list | None = None,
+        show_line_markers: bool = True,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot peak sideband power vs the swept parameter.
@@ -365,9 +375,12 @@ class DualToneSweepData:
 
         peaks_std = peaks_all.std(axis=0) if (show_error and peaks_all is not None) else None
 
+        _show_set = set(harmonics) if harmonics is not None else None
         extra_iter = iter(_EXTRA_COLORS)
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
         for j, n in enumerate(self.harmonics):
+            if _show_set is not None and int(n) not in _show_set:
+                continue
             color = _HARMONIC_COLORS.get(int(n), next(extra_iter, '#000000'))
             if show_points and peaks_all is not None:
                 x_rep = np.tile(x, (self.n_repeats, 1)).ravel()   # (R*M,)
@@ -380,10 +393,12 @@ class DualToneSweepData:
                 y_rep = peaks_avgs[:, j, :].ravel()               # (M*A,)
                 ax.scatter(x_rep, y_rep, color=color, alpha=0.25,
                            s=8, linewidths=0, zorder=1)
+            _mk = {'marker': 'o', 'markersize': 3} if show_line_markers else {}
             ax.plot(
                 x, peaks[:, j],
-                color=color, linewidth=1.5, marker='o', markersize=3,
+                color=color, linewidth=1.5,
                 label=f'Harmonic {n}', zorder=2,
+                **_mk,
             )
             if peaks_std is not None:
                 ax.fill_between(

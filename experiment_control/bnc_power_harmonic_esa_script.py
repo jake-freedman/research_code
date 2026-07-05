@@ -213,16 +213,16 @@ def bnc_power_heterodyne_sweep(
 
 
 def main():
-    cw_powers = voltage_linspace(-20, 22, 50)
+    cw_powers = voltage_linspace(-20, 15, 50)
     # 24 max for f1, 15 max for f2
 
     bnc_power_heterodyne_sweep(
-        cw_freq=1*1.146e9,
+        cw_freq=3*1.146e9,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,
         harmonics=(-1, 0, 1),
         window_hz=2e6,
-        esa_freq_step=0.25e6,
+        esa_freq_step=2e6/1001,
         esa_res_bw=10e3,
         esa_ref_level=-40,
         settle_time_s=0.05,

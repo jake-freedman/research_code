@@ -29,6 +29,11 @@ BLUE2 = "#2522d4"
 VIOLET2 = '#C2B7E9'
 DARKGREEN2 = '#8DB591'
 
+# global style
+plt.rcParams['lines.solid_capstyle'] = 'round'
+plt.rcParams['lines.dash_capstyle']  = 'round'
+plt.rcParams['lines.solid_joinstyle'] = 'round'
+
 # plot settings
 axes_width_mm = 150.0
 axes_height_mm = 80.0

@@ -18,7 +18,7 @@ PINK1 = '#eea1cd'
 GREEN2 = '#93C572'
 LIGHTBLUE2 = '#b2cbf2'
 DARKBLUE2 = '#475c6c'
-ORANGE2 = '#FBD8A2'
+ORANGE2 = '#ffcc75'
 LIGHTGRAY2 = '#cccccc'
 DARKGRAY2 = '#777777'
 RED2 = '#e5a3a3'
@@ -28,6 +28,11 @@ PINK2 = '#e6b8d0'
 BLUE2 = "#2522d4"
 VIOLET2 = '#C2B7E9'
 DARKGREEN2 = '#8DB591'
+
+# global style
+plt.rcParams['lines.solid_capstyle'] = 'round'
+plt.rcParams['lines.dash_capstyle']  = 'round'
+plt.rcParams['lines.solid_joinstyle'] = 'round'
 
 # plot settings
 axes_width_mm = 150.0

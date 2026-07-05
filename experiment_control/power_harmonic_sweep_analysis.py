@@ -12,10 +12,10 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\f2_power_sweeppower_harmonic_sweep_2026-06-15-19-38-56.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-14-03-42.npz"
 
 # X-axis for all plots: 'voltage' (V_rms) or 'dbm' (drive power in dBm).
-X_AXIS = 'voltage'
+X_AXIS = 'dbm'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)

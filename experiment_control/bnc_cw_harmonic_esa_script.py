@@ -313,7 +313,7 @@ def main():
         heterodyne_shift=125e6,
         harmonics=(0, 1),
         window_hz=2e6,
-        esa_freq_step=0.25e6,
+        esa_freq_step=2e6/1001,
         esa_res_bw=10e3,
         esa_ref_level=-40,
         settle_time_s=0.01,

@@ -25,11 +25,23 @@ from graphics import (
 )
 
 # ── data ──────────────────────────────────────────────────────────────────────
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv"
+# One or more CSV files.  Each is plotted on the same axes, offset vertically
+# by i * Y_SHIFT dB (file 0 is unshifted).
+DATA_FILES = [
+    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg9a_p1_2026-06-15-19-13-00.csv",
+    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg14a_p1_2026-06-15-19-10-09.csv",
+    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv",
+    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg11a_p1_2026-06-15-19-11-55.csv",
+    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg6a_p1_2026-06-15-18-50-41.csv"
+
+]
+Y_SHIFT = 6.5   # dB offset applied between consecutive files
+# Per-file colors; None = auto-cycle through [BEIGE2, VIOLET2, TAN2, ...]
+COLORS = None
 
 # ── plot limits ───────────────────────────────────────────────────────────────
 YMIN = -8.0   # dB, None = auto
-YMAX =  0   # dB, None = auto
+YMAX =  28   # dB, None = auto
 XMIN =  0.0   # GHz, None = auto
 XMAX =  3.5   # GHz, None = auto
 
@@ -65,23 +77,8 @@ def _count_columns(filepath: str) -> int:
 
 
 def main():
-    fpath = local_path(DATA_FILE)
-    ncols = _count_columns(fpath)
-    data  = S11S21Data.from_file(fpath) if ncols >= 7 else S11Data.from_file(fpath)
-
-    freqs  = data.freqs
-    s11_db = data.s11_db
-
-    # ── resonance dip ─────────────────────────────────────────────────────────
-    mask = np.ones(len(freqs), dtype=bool)
-    if FREQ_MIN is not None:
-        mask &= freqs >= FREQ_MIN * 1e9
-    if FREQ_MAX is not None:
-        mask &= freqs <= FREQ_MAX * 1e9
-    res_idx  = int(np.argmin(s11_db[mask]))
-    res_freq = freqs[mask][res_idx]
-    res_val  = s11_db[mask][res_idx]
-    print(f"Resonance minimum: {res_freq / 1e9:.6f} GHz  ({res_val:.2f} dB)")
+    _auto_colors = [BEIGE2, VIOLET2, TAN2]
+    _colors = COLORS if COLORS is not None else _auto_colors
 
     # ── figure ────────────────────────────────────────────────────────────────
     fig_w = left_mm + axes_width_mm + right_mm
@@ -94,12 +91,35 @@ def main():
         top    = 1 - top_mm    / fig_h,
     )
 
-    ax.plot(freqs / 1e9, s11_db, color=BEIGE2, linewidth=linewidth)
+    last_freqs = None
+    for i, raw_path in enumerate(DATA_FILES):
+        fpath  = local_path(raw_path)
+        ncols  = _count_columns(fpath)
+        data   = S11S21Data.from_file(fpath) if ncols >= 7 else S11Data.from_file(fpath)
+        freqs  = data.freqs
+        s11_db = data.s11_db + i * Y_SHIFT
+        color  = _colors[i % len(_colors)]
+        last_freqs = freqs
+
+        # ── resonance dip ─────────────────────────────────────────────────────
+        mask = np.ones(len(freqs), dtype=bool)
+        if FREQ_MIN is not None:
+            mask &= freqs >= FREQ_MIN * 1e9
+        if FREQ_MAX is not None:
+            mask &= freqs <= FREQ_MAX * 1e9
+        res_idx  = int(np.argmin(s11_db[mask]))
+        res_freq = freqs[mask][res_idx]
+        res_val  = s11_db[mask][res_idx]
+        label = os.path.basename(fpath)
+        print(f"[{label}]  resonance: {res_freq / 1e9:.6f} GHz  ({res_val:.2f} dB)"
+              + (f"  (shift {i * Y_SHIFT:+.1f} dB)" if Y_SHIFT else ""))
+
+        ax.plot(freqs / 1e9, s11_db, color=color, linewidth=linewidth)
 
     if XMIN is not None or XMAX is not None:
         ax.set_xlim(
-            left  = XMIN if XMIN is not None else freqs[0]  / 1e9,
-            right = XMAX if XMAX is not None else freqs[-1] / 1e9,
+            left  = XMIN if XMIN is not None else last_freqs[0]  / 1e9,
+            right = XMAX if XMAX is not None else last_freqs[-1] / 1e9,
         )
     if YMIN is not None or YMAX is not None:
         ax.set_ylim(
@@ -126,7 +146,7 @@ def main():
 
         svg_path = SAVE_PATH
         if svg_path is None:
-            base = os.path.splitext(os.path.abspath(fpath))[0]
+            base = os.path.splitext(os.path.abspath(local_path(DATA_FILES[0])))[0]
             svg_path = base + '.svg'
         fig.savefig(svg_path, format='svg', bbox_inches='tight')
         print(f"Saved: {svg_path}")

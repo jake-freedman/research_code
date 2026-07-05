@@ -41,9 +41,9 @@ from path_utils import local_path
 # Configuration — edit these values before running
 # ---------------------------------------------------------------------------
 WANTED_HARMONIC = 1       # target sideband index
-BETA_MAX        = 10.0     # upper bound on each beta_k (rad)
+BETA_MAX        = 2.5     # upper bound on each beta_k (rad)
 N_MAX           = 30      # harmonic truncation order
-N_TONES         = 10      # number of RF drive tones (k = 1 .. N_TONES)
+N_TONES         = 3      # number of RF drive tones (k = 1 .. N_TONES)
 N_ITER          = 100     # basin-hopping iterations
 SEED            = 2    # integer for reproducibility, or None for random
 OBJECTIVE       = "power" # "power": maximise power at wanted harmonic

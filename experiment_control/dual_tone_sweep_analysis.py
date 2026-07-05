@@ -11,7 +11,8 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-17-12-50-07.npz"
+# DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-34-54.npz"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -22,7 +23,7 @@ DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\
 #   'ch2_phase'    — channel 2 phase offset (deg)
 #   'stability'    — step index (use when all parameters are held constant to
 #                    check measurement repeatability over time)
-X_AXIS = 'ch2_phase'
+X_AXIS = 'ch2_voltage'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)
@@ -44,10 +45,10 @@ CALIBRATION_REF = 'auto'
 
 # When n_sweep_repeats > 1: show individual repeat points as semi-transparent
 # scatter behind the mean curve?
-SHOW_REPEAT_POINTS = True
+SHOW_REPEAT_POINTS = False
 
 # When n_sweep_repeats > 1: shade ± 1 std band around the mean curve?
-SHOW_ERROR_BAND = True
+SHOW_ERROR_BAND = False
 
 # Plot a single repeat instead of the mean across all repeats?
 # None  → show the mean (default)
@@ -57,7 +58,7 @@ REPEAT_INDEX = None
 # Y-axis limits for sideband power plot (dBm or dBc). None = auto.
 if NORMALIZE == 'percent':
     POWER_YMIN = 0
-    POWER_YMAX = 60
+    POWER_YMAX = 101
 else:
       POWER_YMIN = -90
       POWER_YMAX = 5
@@ -68,6 +69,49 @@ CAL_YMAX = -40
 
 # Initial β guess for single-tone preamble extraction.
 BETA_GUESS_REF = 2.0
+
+# ── sideband filter ──────────────────────────────────────────────────────────
+# None = show all recorded harmonics; list = show only those orders.
+# (ignored when SPLIT_FIGURES = True)
+HARMONICS_TO_SHOW = [-2, -1, 0, 1, 2]   # e.g. [-1, 1] to show only ±1
+
+# ── figure size ───────────────────────────────────────────────────────────────
+axes_width_mm  = 100
+axes_height_mm = 55
+
+# ── split figures ─────────────────────────────────────────────────────────────
+# When True, produce three separate power figures instead of one.
+# Each dict: harmonics to include, y-limits, axes size, and SVG filename.
+SPLIT_FIGURES = False
+SPLIT_GROUPS = [
+    {'harmonics': [0],      'ymin': 0,   'ymax': 18,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_0.svg'},
+    {'harmonics': [-1, 1],  'ymin': -2,  'ymax': 53,  'w_mm': 85,  'h_mm': 55,  'marker_pt': 8,  'svg': 'dual_tone_sweep_powers_pm1.svg'},
+    {'harmonics': [-2, 2],  'ymin': 0,   'ymax': 18,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_pm2.svg'},
+]
+
+# ── publication export ────────────────────────────────────────────────────────
+# When True: removes axis/tick labels, legend, and title; saves SVGs.
+FOR_PUBLICATION = False
+SAVE_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+
+# Marker style for publication plot. Scatter is drawn first; curves on top.
+# PUB_MARKER_EDGE_COLOR / PUB_CURVE_COLOR: 'same' = match combline color.
+PUB_MARKER_PT           = 8      # marker diameter in points
+PUB_MARKER_ALPHA        = 1      # fill alpha (edge is always fully opaque)
+PUB_MARKER_EDGE_COLOR   = 'same'
+PUB_MARKER_EDGE_WIDTH   = 0.5      # edge stroke width in points
+PUB_MARKER_STRIDE       = 1      # plot every Nth point (1 = all, 2 = every other, etc.)
+
+PUB_CURVE_SHOW          = True      # draw a curve relative to scatter markers
+PUB_CURVE_BEHIND        = False      # True = curve behind points; False = curve on top
+PUB_CURVE_COLOR         = 'black'   # 'same' = keep combline color
+PUB_CURVE_WIDTH         = 2.0       # linewidth in points
+# 'raw'      → plot the data line directly
+# 'sinusoid' → fit A·cos(ω·x + φ) + C to each combline and plot the smooth fit
+PUB_CURVE_MODE          = 'sinusoid'
+# Per-combline period count for the sinusoid frequency initial guess.
+# Keys are harmonic orders (int); missing orders default to 1.
+PUB_SINUSOID_N_PERIODS  = {0:(1,2), -2: (1,2), 2: (1,2), -1: (1,2), 1: (1,2)}
 
 
 def main():
@@ -121,21 +165,133 @@ def main():
     if data.ref_cal_spectrum is not None:
         print(f"  Preamble J0      : {float(data.ref_cal_spectrum.max()):.2f} dBm")
 
-    data.plot_peak_powers(
-        normalize=NORMALIZE,
-        x_axis=X_AXIS,
-        ymin=POWER_YMIN,
-        ymax=POWER_YMAX,
-        show_points=SHOW_REPEAT_POINTS,
-        show_error=SHOW_ERROR_BAND,
-    )
+    import os as _os
+    import matplotlib.colors as _mc
+    from scipy.optimize import curve_fit as _curve_fit
+
+    def _parse_order(lbl):
+        parts = lbl.split()
+        try:
+            return int(parts[-1]) if parts[0] == 'Harmonic' else None
+        except ValueError:
+            return None
+
+    def _make_sin_model(omegas):
+        """Return a sum-of-sinusoids model with fixed frequencies given by omegas."""
+        def _model(x, *params):
+            # params: A0, phi0, A1, phi1, ..., C  (2*N + 1 values)
+            total = np.full_like(x, params[-1], dtype=float)
+            for k, om in enumerate(omegas):
+                total += params[2 * k] * np.cos(om * x + params[2 * k + 1])
+            return total
+        return _model
+
+    def _apply_pub_style(fig, ax, svg_name, marker_pt=PUB_MARKER_PT):
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.tick_params(labelbottom=False, labelleft=False)
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+        _lines = [(ln, ln.get_xdata().copy(), ln.get_ydata().copy(), ln.get_color(),
+                   _parse_order(ln.get_label()))
+                  for ln in ax.lines]
+        for _, xd_all, yd_all, fc, _ in _lines:
+            rgba = list(_mc.to_rgba(fc))
+            rgba[3] = PUB_MARKER_ALPHA
+            ec = fc if PUB_MARKER_EDGE_COLOR == 'same' else PUB_MARKER_EDGE_COLOR
+            xd = xd_all[::PUB_MARKER_STRIDE]
+            yd = yd_all[::PUB_MARKER_STRIDE]
+            ax.scatter(xd, yd,
+                       s=marker_pt ** 2,
+                       facecolors=[rgba] * len(xd),
+                       edgecolors=ec,
+                       linewidths=PUB_MARKER_EDGE_WIDTH,
+                       zorder=2)
+        if PUB_CURVE_SHOW:
+            cc_fn = lambda fc: fc if PUB_CURVE_COLOR == 'same' else PUB_CURVE_COLOR
+            curve_z = 1 if PUB_CURVE_BEHIND else 5
+            if PUB_CURVE_MODE == 'raw':
+                for ln, _, _, fc, _ in _lines:
+                    ln.set_color(cc_fn(fc))
+                    ln.set_linewidth(PUB_CURVE_WIDTH)
+                    ln.set_zorder(curve_z)
+            elif PUB_CURVE_MODE == 'sinusoid':
+                for ln, _, _, _, _ in _lines:
+                    ln.set_visible(False)
+                for _, xd_all, yd_all, fc, order in _lines:
+                    x_span = xd_all[-1] - xd_all[0]
+                    if x_span == 0 or len(xd_all) < 4:
+                        continue
+                    periods_raw = (PUB_SINUSOID_N_PERIODS.get(order, 1)
+                                   if isinstance(PUB_SINUSOID_N_PERIODS, dict)
+                                   else PUB_SINUSOID_N_PERIODS)
+                    periods = (periods_raw,) if not isinstance(periods_raw, (list, tuple)) else tuple(periods_raw)
+                    omegas = tuple(2 * np.pi * n / x_span for n in periods)
+                    model = _make_sin_model(omegas)
+                    A0 = (yd_all.max() - yd_all.min()) / 2
+                    C0 = (yd_all.max() + yd_all.min()) / 2
+                    p0 = [v for _ in omegas for v in (A0 / len(omegas), 0.0)] + [C0]
+                    try:
+                        popt, _ = _curve_fit(model, xd_all, yd_all, p0=p0, maxfev=10000)
+                        x_fit = np.linspace(xd_all.min(), xd_all.max(), 500)
+                        ax.plot(x_fit, model(x_fit, *popt),
+                                color=cc_fn(fc), linewidth=PUB_CURVE_WIDTH, zorder=curve_z)
+                    except RuntimeError:
+                        print(f"  Warning: sinusoid fit failed for harmonic {order}; skipping.")
+        fig.savefig(_os.path.join(SAVE_FOLDER, svg_name), format='svg', bbox_inches='tight')
+        print(f"Saved: {_os.path.join(SAVE_FOLDER, svg_name)}")
+
+    if SPLIT_FIGURES:
+        for grp in SPLIT_GROUPS:
+            fig_g, ax_g = data.plot_peak_powers(
+                normalize=NORMALIZE,
+                x_axis=X_AXIS,
+                axes_width_mm=grp['w_mm'],
+                axes_height_mm=grp['h_mm'],
+                ymin=grp['ymin'],
+                ymax=grp['ymax'],
+                show_points=SHOW_REPEAT_POINTS,
+                show_error=SHOW_ERROR_BAND,
+                harmonics=grp['harmonics'],
+                show_line_markers=not FOR_PUBLICATION,
+            )
+            if FOR_PUBLICATION:
+                _apply_pub_style(fig_g, ax_g, grp['svg'],
+                                 marker_pt=grp.get('marker_pt', PUB_MARKER_PT))
+    else:
+        fig_pow, ax_pow = data.plot_peak_powers(
+            normalize=NORMALIZE,
+            x_axis=X_AXIS,
+            axes_width_mm=axes_width_mm,
+            axes_height_mm=axes_height_mm,
+            ymin=POWER_YMIN,
+            ymax=POWER_YMAX,
+            show_points=SHOW_REPEAT_POINTS,
+            show_error=SHOW_ERROR_BAND,
+            harmonics=HARMONICS_TO_SHOW,
+            show_line_markers=not FOR_PUBLICATION,
+        )
+        if FOR_PUBLICATION:
+            _apply_pub_style(fig_pow, ax_pow, 'dual_tone_sweep_powers.svg')
 
     if SHOW_CALIBRATION:
-        data.plot_calibration(
+        fig_cal, ax_cal = data.plot_calibration(
             x_axis=X_AXIS,
+            axes_width_mm=axes_width_mm,
+            axes_height_mm=axes_height_mm,
             ymin=CAL_YMIN,
             ymax=CAL_YMAX,
         )
+
+        if FOR_PUBLICATION:
+            import os as _os
+            ax_cal.set_xlabel('')
+            ax_cal.set_ylabel('')
+            ax_cal.tick_params(labelbottom=False, labelleft=False)
+            fig_cal.savefig(_os.path.join(SAVE_FOLDER, 'dual_tone_sweep_calibration.svg'),
+                            format='svg', bbox_inches='tight')
+            print(f"Saved: {_os.path.join(SAVE_FOLDER, 'dual_tone_sweep_calibration.svg')}")
 
     plt.show()
 

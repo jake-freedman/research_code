@@ -10,7 +10,7 @@ BETA2_MAX = 5.0
 
 # False: sum_k J_{2k+1}(b1) * J_{-k}(b2)   * exp(i[(2k+1)*phi1 - k*phi2])
 # True:  sum_k J_{2k}(b1)   * J_{1-k}(b2)  * exp(i[2k*phi1 + (1-k)*phi2])
-is_second_harmonic = True
+is_second_harmonic = False
 
 N_BETA  = 100   # grid points along each beta axis
 N_PHI1  = 100   # phi1 grid points (only used when FIX_PHI1=False)
@@ -63,13 +63,45 @@ C      = coeffs.reshape(-1, len(k))                  # (N_B1*N_B2, M)
 phase2 = np.exp(1j * order2[None, :] * phi2[:, None])  # (N_P2, M)
 
 # loop over phi1, accumulating running maximum of |S|^2
-Z = np.zeros(N_BETA * N_BETA)
-for phi1_val in phi1:
-    C_mod = C * np.exp(1j * order1 * phi1_val)       # (N_B1*N_B2, M)
-    S     = C_mod @ phase2.T                          # (N_B1*N_B2, N_P2)
-    Z     = np.maximum(Z, np.max(np.abs(S)**2, axis=-1))
+Z         = np.zeros(N_BETA * N_BETA)
+Z_phi1_idx = np.zeros(N_BETA * N_BETA, dtype=int)
+Z_phi2_idx = np.zeros(N_BETA * N_BETA, dtype=int)
 
-Z = Z.reshape(N_BETA, N_BETA)                        # (N_B1, N_B2)
+for i_p1, phi1_val in enumerate(phi1):
+    C_mod    = C * np.exp(1j * order1 * phi1_val)    # (N_B1*N_B2, M)
+    S        = C_mod @ phase2.T                       # (N_B1*N_B2, N_P2)
+    S_pow    = np.abs(S) ** 2                         # (N_B1*N_B2, N_P2)
+    best_p2  = np.argmax(S_pow, axis=-1)              # (N_B1*N_B2,)
+    best_pow = S_pow[np.arange(len(S_pow)), best_p2]
+    improved = best_pow > Z
+    Z          = np.where(improved, best_pow, Z)
+    Z_phi1_idx = np.where(improved, i_p1, Z_phi1_idx)
+    Z_phi2_idx = np.where(improved, best_p2, Z_phi2_idx)
+
+Z          = Z.reshape(N_BETA, N_BETA)                # (N_B1, N_B2)
+Z_phi1_idx = Z_phi1_idx.reshape(N_BETA, N_BETA)
+Z_phi2_idx = Z_phi2_idx.reshape(N_BETA, N_BETA)
+
+# ── report global optimum ─────────────────────────────────────────────────────
+best_i, best_j = np.unravel_index(np.argmax(Z), Z.shape)
+opt_beta1 = b1[best_i]
+opt_beta2 = b2[best_j]
+opt_phi1  = phi1[Z_phi1_idx[best_i, best_j]]
+opt_phi2  = phi2[Z_phi2_idx[best_i, best_j]]
+opt_eff   = Z[best_i, best_j] * 100.0
+
+print(f"Optimal β₁  = {opt_beta1:.4f}")
+print(f"Optimal β₂  = {opt_beta2:.4f}")
+if FIX_PHI1:
+    print(f"φ₁          = {opt_phi1/np.pi:.4f}π  (fixed)")
+else:
+    print(f"Optimal φ₁  = {opt_phi1/np.pi:.4f}π")
+if FIX_PHI2:
+    print(f"φ₂          = {opt_phi2/np.pi:.4f}π  (fixed)")
+else:
+    print(f"Optimal φ₂  = {opt_phi2/np.pi:.4f}π")
+print(f"Peak |S|²   = {opt_eff:.2f}%")
+# ─────────────────────────────────────────────────────────────────────────────
 
 B1, B2 = np.meshgrid(b1, b2, indexing='ij')
 

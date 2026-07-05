@@ -3,68 +3,72 @@ from scipy.special import jv
 from scipy.optimize import differential_evolution
 
 # ── configuration ─────────────────────────────────────────────────────────────
-BETA1_MAX = 5.0   # upper bound on beta1
-BETA2_MAX = 5.0   # upper bound on beta2
-
-# False: sum_k J_{2k+1}(b1) * J_{-k}(b2)   * exp(i[(2k+1)*phi1 - k*phi2])
-# True:  sum_k J_{2k}(b1)   * J_{1-k}(b2)  * exp(i[2k*phi1 + (1-k)*phi2])
-is_second_harmonic = False
+BETA1_MAX = 2
+BETA2_MAX = 3
 
 # Truncation: sum runs k = -K_TRUNC ... K_TRUNC.
-# J_n(x) is negligible for |n| >> x, so the default is conservative.
 K_TRUNC = int(2 * max(BETA1_MAX, BETA2_MAX)) + 20
 
-# differential_evolution settings
-DE_POPSIZE = 20     # population size multiplier
-DE_MAXITER = 2000   # max generations
-DE_TOL     = 1e-10  # convergence tolerance
-DE_SEED    = 42
+# 'maximize' → maximise  |A_{ORDER_A}|²
+# 'suppress' → minimise  |A_{ORDER_A}|²
+# 'ratio'    → maximise  |A_{ORDER_A}|² / Σ |A_{ORDER_B_i}|²
+OPTIMIZE_MODE = 'ratio'
+ORDER_A  = 1        # numerator order
+ORDERS_B = [-1, 0]  # denominator orders (list); sum of their powers forms the denominator
 
-FIX_PHI1 = False   # if True, phi1 is held at 0 and not optimized
+FIX_PHI1 = True   # if True, phi1 is held at 0 and not optimized
+
+# differential_evolution settings
+DE_POPSIZE = 20
+DE_MAXITER = 2000
+DE_TOL     = 1e-10
+DE_SEED    = 42
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def bessel_sum(beta1, beta2, phi1, phi2) -> complex:
+def bessel_sum(beta1, beta2, phi1, phi2, order) -> complex:
+    """A_order = sum_k J_{order-2k}(β1) J_k(β2) exp(i[(order-2k)φ1 + k φ2])"""
     k = np.arange(-K_TRUNC, K_TRUNC + 1)
-    if is_second_harmonic:
-        terms = (
-            jv(2 * k, beta1)
-            * jv(1 - k, beta2)
-            * np.exp(1j * (2 * k * phi1 + (1 - k) * phi2))
-        )
-    else:
-        terms = (
-            jv(2 * k + 1, beta1)
-            * jv(-k, beta2)
-            * np.exp(1j * ((2 * k + 1) * phi1 - k * phi2))
-        )
-    return terms.sum()
+    terms = (
+        jv(order - 2 * k, beta1)
+        * jv(k, beta2)
+        * np.exp(1j * ((order - 2 * k) * phi1 + k * phi2))
+    )
+    return complex(terms.sum())
 
 
 def objective(params):
     if FIX_PHI1:
         beta1, beta2, phi2 = params
-        return -np.abs(bessel_sum(beta1, beta2, 0.0, phi2))**2
-    return -np.abs(bessel_sum(*params))**2
+        phi1 = 0.0
+    else:
+        beta1, beta2, phi1, phi2 = params
+
+    pow_a = np.abs(bessel_sum(beta1, beta2, phi1, phi2, ORDER_A)) ** 2
+    if OPTIMIZE_MODE == 'maximize':
+        return -pow_a
+    if OPTIMIZE_MODE == 'suppress':
+        return pow_a
+    # ratio: maximise |A_a|² / Σ|A_b_i|²
+    pow_b = sum(np.abs(bessel_sum(beta1, beta2, phi1, phi2, ob)) ** 2 for ob in ORDERS_B)
+    return -pow_a / (pow_b + 1e-30)
 
 
 if __name__ == '__main__':
-    if FIX_PHI1:
-        bounds = [
-            (0.0, BETA1_MAX),
-            (0.0, BETA2_MAX),
-            (0.0, 2 * np.pi),
-        ]
-    else:
-        bounds = [
-            (0.0, BETA1_MAX),
-            (0.0, BETA2_MAX),
-            (0.0, 2 * np.pi),
-            (0.0, 2 * np.pi),
-        ]
+    bounds = (
+        [(0.0, BETA1_MAX), (0.0, BETA2_MAX), (0.0, 2 * np.pi)]
+        if FIX_PHI1
+        else [(0.0, BETA1_MAX), (0.0, BETA2_MAX), (0.0, 2 * np.pi), (0.0, 2 * np.pi)]
+    )
 
-    mode = 'second harmonic (2k, 1-k)' if is_second_harmonic else 'fundamental (2k+1, -k)'
-    print(f'Mode             : {mode}')
+    if OPTIMIZE_MODE == 'ratio':
+        denom_str = ' + '.join(f'|A_{o}|²' for o in ORDERS_B)
+        mode_str = f'maximise |A_{ORDER_A}|² / ({denom_str})'
+    elif OPTIMIZE_MODE == 'suppress':
+        mode_str = f'suppress |A_{ORDER_A}|²'
+    else:
+        mode_str = f'maximise |A_{ORDER_A}|²'
+    print(f'Mode             : {mode_str}')
     print(f'phi1 fixed at 0  : {FIX_PHI1}')
     print(f'Truncation order : K = {K_TRUNC}  ({2*K_TRUNC+1} terms)')
     print(f'Beta bounds      : beta1 in [0, {BETA1_MAX}],  beta2 in [0, {BETA2_MAX}]')
@@ -86,14 +90,20 @@ if __name__ == '__main__':
         p1 = 0.0
     else:
         b1, b2, p1, p2 = result.x
-    S = bessel_sum(b1, b2, p1, p2)
 
+    pow_a = np.abs(bessel_sum(b1, b2, p1, p2, ORDER_A)) ** 2
     print()
-    print(f'Optimal |S|² = {np.abs(S)**2:.8f}')
-    print(f'Optimal |S|  = {np.abs(S):.8f}')
-    print(f'  beta1      = {b1:.6f}')
-    print(f'  beta2      = {b2:.6f}')
-    print(f'  phi1       = {p1:.6f} rad  ({np.degrees(p1):.3f} deg)')
-    print(f'  phi2       = {p2:.6f} rad  ({np.degrees(p2):.3f} deg)')
-    print(f'  S          = {S.real:.6f} + {S.imag:.6f}i')
-    print(f'  angle(S)   = {np.angle(S, deg=True):.3f} deg')
+    if OPTIMIZE_MODE == 'ratio':
+        pow_b_each = {o: np.abs(bessel_sum(b1, b2, p1, p2, o)) ** 2 for o in ORDERS_B}
+        pow_b_total = sum(pow_b_each.values())
+        ratio = pow_a / (pow_b_total + 1e-30)
+        print(f'Ratio  = {ratio:.4f}  ({10 * np.log10(ratio):.2f} dB)')
+        print(f'|A_{ORDER_A}|²  = {pow_a:.8f}  ({pow_a * 100:.4f} %)')
+        for o, p in pow_b_each.items():
+            print(f'|A_{o}|²  = {p:.8f}  ({p * 100:.4f} %)')
+    else:
+        print(f'|A_{ORDER_A}|²  = {pow_a:.8f}  ({pow_a * 100:.4f} %)')
+    print(f'  beta1  = {b1:.6f}')
+    print(f'  beta2  = {b2:.6f}')
+    print(f'  phi1   = {p1:.6f} rad  ({np.degrees(p1):.3f} deg)')
+    print(f'  phi2   = {p2:.6f} rad  ({np.degrees(p2):.3f} deg)')

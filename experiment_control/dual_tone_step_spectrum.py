@@ -32,7 +32,7 @@ STEP = None
 
 # When STEP is None: find the step where this harmonic order's power is maximum.
 # Set to None alongside STEP=None to default to step 0.
-AUTO_FIND_ORDER = -1
+AUTO_FIND_ORDER = 1
 
 # Harmonic orders to show in the plot and console table.
 # Orders not present in the file are silently skipped.
@@ -74,18 +74,47 @@ THEORY_MAX_ORDER = None
 N_PHASE_OPT = 500
 
 # ── graphics ──────────────────────────────────────────────────────────────────
-axes_width_mm  = 100
-axes_height_mm = 40
+axes_width_mm  = 50
+axes_height_mm = 15
 left_mm   = _left_mm
 right_mm  = _right_mm
 bottom_mm = _bottom_mm
 top_mm    = _top_mm
 stem_linewidth    = 3
-markersize        = 9
-theory_markersize = 13.0   # open circles for theory — larger than measured balls
+markersize        = 6
+theory_markersize = 8.0   # open circles for theory — larger than measured balls
 
-_COLORS = [BLUE2, RED2, GREEN2, VIOLET2, ORANGE2, DARKGREEN2,
-           DARKBLUE2, TAN2, PINK2, DARKGRAY2, BEIGE2, LIGHTBLUE2]
+# Colors matching plot_dual_tone_hierarchy.py; fallback list for orders outside the dict.
+_ORDER_COLORS = {
+    -3: '#bf7362',
+    -2: RED2,
+    -1: ORANGE2,
+     0: GREEN2,
+     1: LIGHTBLUE2,
+     2: '#5c70aa',
+     3: VIOLET2,
+}
+_FALLBACK_COLORS = [BLUE2, RED2, GREEN2, VIOLET2, ORANGE2, DARKGREEN2,
+                    DARKBLUE2, TAN2, PINK2, DARKGRAY2, BEIGE2, LIGHTBLUE2]
+
+# ── publication export ────────────────────────────────────────────────────────
+FOR_PUBLICATION = True
+SAVE_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+
+# ── time-domain waveform ──────────────────────────────────────────────────────
+SHOW_WAVEFORM = True
+WAVEFORM_COLOR = VIOLET2                          # color of the total drive waveform
+WAVEFORM_COMPONENT_COLORS = [LIGHTBLUE2, RED2]  # [Ω component, 2Ω component]
+WAVEFORM_COMPONENT_ALPHA = 0.5
+WAVEFORM_LINEWIDTH = 2
+WAVEFORM_AXES_W_MM = 35
+WAVEFORM_AXES_H_MM = 20
+WAVEFORM_N_CYCLES = 2      # number of fundamental periods to show
+WAVEFORM_N_PTS = 500
+WAVEFORM_SAVE_NAME = 'dual_tone_waveform.svg'
+# 'auto' = read phase from step data; float = override in degrees
+WAVEFORM_PHI1_DEG = 0
+WAVEFORM_PHI2_DEG = 0
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -282,7 +311,7 @@ def main():
 
     # Measured: colored stems + filled balls
     for idx, (xi, yi) in enumerate(zip(x_arr, y_measured)):
-        c = _COLORS[idx % len(_COLORS)]
+        c = _ORDER_COLORS.get(int(xi), _FALLBACK_COLORS[idx % len(_FALLBACK_COLORS)])
         ax.plot([xi, xi], [y_baseline, yi],
                 color=c, linewidth=stem_linewidth,
                 solid_capstyle='butt', zorder=2)
@@ -321,8 +350,78 @@ def main():
         title_parts.append(f"φ1={phi1_val:.0f}°, φ2={phi2_val:.0f}°")
     ax.set_title(",  ".join(title_parts), fontsize=axis_label_fontsize)
 
-    if theory_vals:
+    if theory_vals and not FOR_PUBLICATION:
         ax.legend(fontsize=tick_label_fontsize, frameon=False)
+
+    if FOR_PUBLICATION:
+        import os as _os
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.set_title('')
+        ax.tick_params(labelbottom=False, labelleft=False)
+        svg_path = _os.path.join(SAVE_FOLDER, 'dual_tone_step_spectrum.svg')
+        fig.savefig(svg_path, format='svg', bbox_inches='tight')
+        print(f"Saved: {svg_path}")
+
+    # ── time-domain waveform figure ───────────────────────────────────────────
+    if SHOW_WAVEFORM:
+        _b1_wave = beta1_val
+        _b2_wave = beta2_val
+        if _b1_wave is None or _b2_wave is None:
+            try:
+                _b1_wave, _b2_wave = data.single_tone_modulation_depths()
+            except (RuntimeError, AttributeError):
+                _b1_wave = _b2_wave = 1.0
+
+        _phi1_wave = (np.deg2rad(float(data.ch1_phases_deg[step]))
+                      if WAVEFORM_PHI1_DEG == 'auto'
+                      else np.deg2rad(float(WAVEFORM_PHI1_DEG)))
+        _phi2_wave = (np.deg2rad(float(data.ch2_phases_deg[step]))
+                      if WAVEFORM_PHI2_DEG == 'auto'
+                      else np.deg2rad(float(WAVEFORM_PHI2_DEG)))
+
+        _theta  = np.linspace(0, 2 * np.pi * WAVEFORM_N_CYCLES, WAVEFORM_N_PTS)
+        _t_norm = _theta / (2 * np.pi)
+        _comp1  = _b1_wave * np.cos(_theta + _phi1_wave)
+        _comp2  = _b2_wave * np.cos(2 * _theta + _phi2_wave)
+        _total  = _comp1 + _comp2
+
+        _wf_fw = left_mm + WAVEFORM_AXES_W_MM + right_mm
+        _wf_fh = bottom_mm + WAVEFORM_AXES_H_MM + top_mm
+        fig_wave, ax_wave = plt.subplots(figsize=(_wf_fw / 25.4, _wf_fh / 25.4))
+        fig_wave.subplots_adjust(
+            left   = left_mm   / _wf_fw,
+            right  = 1 - right_mm  / _wf_fw,
+            bottom = bottom_mm / _wf_fh,
+            top    = 1 - top_mm    / _wf_fh,
+        )
+
+        ax_wave.plot(_t_norm, _comp1, color=WAVEFORM_COMPONENT_COLORS[0],
+                     alpha=WAVEFORM_COMPONENT_ALPHA, linewidth=WAVEFORM_LINEWIDTH,
+                     solid_capstyle='round', zorder=1)
+        ax_wave.plot(_t_norm, _comp2, color=WAVEFORM_COMPONENT_COLORS[1],
+                     alpha=WAVEFORM_COMPONENT_ALPHA, linewidth=WAVEFORM_LINEWIDTH,
+                     solid_capstyle='round', zorder=1)
+        ax_wave.plot(_t_norm, _total, color=WAVEFORM_COLOR,
+                     linewidth=WAVEFORM_LINEWIDTH, solid_capstyle='round', zorder=2)
+        ax_wave.axhline(0, color='#888888', linewidth=0.6, zorder=0)
+
+        ax_wave.set_xlabel(r'Time [$\Omega t \,/\, 2\pi$]', fontsize=axis_label_fontsize)
+        ax_wave.set_ylabel('Phase mod. [rad]', fontsize=axis_label_fontsize)
+        ax_wave.set_xlim(0, WAVEFORM_N_CYCLES)
+        for spine in ax_wave.spines.values():
+            spine.set_linewidth(spine_linewidth)
+        ax_wave.tick_params(axis='both', direction=tick_direction,
+                            width=tick_width, labelsize=tick_label_fontsize)
+
+        if FOR_PUBLICATION:
+            import os as _os
+            ax_wave.set_xlabel('')
+            ax_wave.set_ylabel('')
+            ax_wave.tick_params(labelbottom=False, labelleft=False)
+            _wf_svg = _os.path.join(SAVE_FOLDER, WAVEFORM_SAVE_NAME)
+            fig_wave.savefig(_wf_svg, format='svg', bbox_inches='tight')
+            print(f"Saved: {_wf_svg}")
 
     plt.show()
 
