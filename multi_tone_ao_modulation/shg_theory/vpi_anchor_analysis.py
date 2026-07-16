@@ -64,7 +64,7 @@ _EXTRA_COLORS = [BLUE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2, DARKGRAY2]
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\really_good_bnc_power_sweep_mode2.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\wg6_mode1_calibration.npz"
 
 # X-axis for the sideband/calibration plots: 'voltage' (V_rms) or 'dbm'.
 # (Anchor V_pi values are always computed from the true RF voltage,
@@ -146,8 +146,8 @@ SIDEBAND_ZORDER           = 2
 # ]
 
 ANCHOR_POINTS = [
-    {'harmonic': 1, 'beta_zero': 1.8412, 'window': (0.5, 2.0), 'kind': 'max', 'label': 'J1 1st max'},
-    {'harmonic': 0, 'beta_zero': 2.405, 'window': (0.5, 2.5), 'label': 'J0 1st null'},
+    {'harmonic': 1, 'beta_zero': 1.8412, 'window': (0.5, 4.0), 'kind': 'max', 'label': 'J1 1st max'},
+    # {'harmonic': 0, 'beta_zero': 2.405, 'window': (0.5, 4.5), 'label': 'J0 1st null'},
 
     # Inflection points (curvature zeros of J_n(beta)^2, numerically rooted --
     # not standard tabulated constants). Voltages below use V_pi = 1.5605 V,
@@ -217,7 +217,7 @@ THEORY_ZORDER     = 10
 # to that harmonic's data at every voltage, so its curve is shifted by a
 # fixed factor to match theory at the reference point. Requires per-step
 # calibration (cal_spectra).
-CORRECTION_VOLTAGE = 1.1   # reference RF voltage in V_rms; None = disabled
+CORRECTION_VOLTAGE =  0.84 #2.6   # reference RF voltage in V_rms; None = disabled
 # Which anchor's V_pi supplies the theory reference at CORRECTION_VOLTAGE:
 # None = mean V_pi across all successfully found anchors; otherwise an
 # ANCHOR_POINTS index or anchor 'label' string.
@@ -254,8 +254,8 @@ CORRECTION_CONTROL_GAP_MM      = 4   # horizontal gap between slider and checkbo
 # surviving per-harmonic factors are then overlaid as a corrected curve
 # (mean) with a shaded uncertainty cloud (+-std), independent of
 # APPLY_CORRECTION above.
-SHOW_CORRECTED_CLOUD = False
-CORRECTION_VOLTAGE_RANGE = (0.5, 2.5)   # (vmin, vmax), true V_rms
+SHOW_CORRECTED_CLOUD = True
+CORRECTION_VOLTAGE_RANGE = (0.5, 4.5)   # (vmin, vmax), true V_rms
 CORRECTION_N_SAMPLES = 20
 CORRECTION_MIN_CE = 0.05   # 5%, linear fraction of carrier power
 # Which harmonics get a corrected-cloud overlay. None = same as
@@ -304,10 +304,13 @@ def load_averaged(filepath: str) -> PowerHeterodyneSweepData:
         spectra = 10.0 * np.log10((10.0 ** (spectra / 10.0)).mean(axis=0))
     elif spectra.ndim != 3:
         raise ValueError(f"Unexpected spectra shape {spectra.shape} in {filepath}")
+    spectra = spectra[np.newaxis]  # (M, N, K) -> (1, M, N, K) to match peak_powers_dbm()
 
     cal = d['cal_spectra'] if 'cal_spectra' in d else None
     if cal is not None and cal.ndim == 3:
         cal = 10.0 * np.log10((10.0 ** (cal / 10.0)).mean(axis=0))
+    if cal is not None:
+        cal = cal[np.newaxis]  # (M, K) -> (1, M, K) to match cal_peak_power_dbm()
 
     data = PowerHeterodyneSweepData.__new__(PowerHeterodyneSweepData)
     data.cw_freq          = float(d['cw_freq'])

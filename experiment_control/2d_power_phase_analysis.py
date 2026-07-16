@@ -37,11 +37,11 @@ SIDEBAND_CMAP = mcolors.LinearSegmentedColormap.from_list(
     'sideband_pm1', [CMAP_COLOR_LOW, CMAP_COLOR_HIGH]
 )
 
-FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-06-24-14-33-24"
+FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-07-16-14-09-06"
 # FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-06-23-14-30-45"
 
 # Harmonic order to plot (must be in the harmonics list recorded by the script)
-HARMONIC = -1
+HARMONIC = 1
 
 # Normalization for the colour axis:
 #   False     → dBm  (raw ESA peak power)
@@ -63,13 +63,13 @@ axes_height_mm = 38
 # When n_grid_repeats > 1: which repeat to display in the contour map.
 #   None → use the mean across all repeats (default)
 #   0, 1, … → use only that repeat index (0-based)
-GRID_REPEAT_INDEX = 0
+GRID_REPEAT_INDEX = None
 
 # ── 3D surface plot ─────────────────────────────────────────────────
 # When True, render the heatmap(s) as 3D surfaces (Z = value) instead of the
 # 2D filled contour -- colored with the same colormap/levels, with a sparse
 # wireframe overlay and an orthographic (non-perspective) projection.
-PLOT_3D_SURFACE = True
+PLOT_3D_SURFACE = False
 # Wireframe grid-line stride (every Nth line, in each direction), separate
 # for the experimental and theory surfaces since they may have very
 # different grid resolutions (see THEORY_N1/THEORY_N2).
@@ -91,7 +91,7 @@ SURFACE_BOX_ASPECT = (4, 4, 3)
 # ── publication export ────────────────────────────────────────────
 # When True: removes tick labels, axis labels, colorbar labels, and title,
 # and saves SVGs to SAVE_FOLDER.
-FOR_PUBLICATION = True
+FOR_PUBLICATION = False
 SAVE_FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\media"
 
 # Contour lines drawn on top of the filled map when FOR_PUBLICATION = True.

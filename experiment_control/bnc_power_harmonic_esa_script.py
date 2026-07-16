@@ -64,6 +64,7 @@ def bnc_power_heterodyne_sweep(
     optional_name: str = '',
     use_cxa: bool = False,
     per_step_calibration: bool = False,
+    homodyne: bool = False,
     plot: bool = True,
 ) -> str:
     """
@@ -110,7 +111,12 @@ def bnc_power_heterodyne_sweep(
         If True, the RF output is briefly turned off at each step to record a
         carrier-beat spectrum at heterodyne_shift. These are saved as
         'cal_spectra' (M, K) and enable dBc / percent normalisation in
-        the analysis script. Default False.
+        the analysis script. Ignored when homodyne=True. Default False.
+    homodyne : bool
+        If True, look for beatnotes at abs(n * comb_spacing) rather than
+        abs(n * comb_spacing + heterodyne_shift). Use when there is no AOM
+        frequency offset (direct detection). Note: n=0 falls at DC and cannot
+        be measured; per_step_calibration is also unavailable. Default False.
     plot : bool
         If True, plot peak powers and modulation depth after saving. Default True.
 
@@ -123,16 +129,20 @@ def bnc_power_heterodyne_sweep(
         comb_spacing = cw_freq
     cw_powers = np.asarray(cw_powers)
     harmonics = list(harmonics)
+    if homodyne and per_step_calibration:
+        print("Warning: per_step_calibration is unavailable in homodyne mode (carrier is at DC); ignoring.")
+        per_step_calibration = False
     comb_note = (
         f", comb spacing {comb_spacing / 1e9:.4f} GHz"
         if comb_spacing != cw_freq else ""
     )
     repeat_note = f", {n_repeats} repeats" if n_repeats > 1 else ""
+    detection_note = "homodyne" if homodyne else f"shift {heterodyne_shift / 1e6:.1f} MHz"
     print(
         f"Starting BNC power sweep: {len(cw_powers)} steps "
         f"({cw_powers[0]:+.1f} to {cw_powers[-1]:+.1f} dBm) "
         f"at {cw_freq / 1e9:.4f} GHz{comb_note}{repeat_note}, "
-        f"harmonics {harmonics}, shift {heterodyne_shift / 1e6:.1f} MHz"
+        f"harmonics {harmonics}, {detection_note}"
         + (", per-step calibration ON" if per_step_calibration else "")
     )
 
@@ -185,7 +195,7 @@ def bnc_power_heterodyne_sweep(
 
                     harmonic_spectra = []
                     for n in harmonics:
-                        center = abs(n * comb_spacing + heterodyne_shift)
+                        center = abs(n * comb_spacing) if homodyne else abs(n * comb_spacing + heterodyne_shift)
                         esa.configure(
                             start_freq=center - window_hz,
                             stop_freq=center + window_hz,
@@ -229,7 +239,7 @@ def bnc_power_heterodyne_sweep(
         n_repeats=np.array(n_repeats),
         cw_powers=cw_powers,
         harmonics=np.array(harmonics),
-        heterodyne_shift=np.array(heterodyne_shift),
+        heterodyne_shift=np.array(0.0 if homodyne else heterodyne_shift),
         window_hz=np.array(window_hz),
         esa_freq_step_hz=np.array(esa_freq_step),
         offsets_hz=offsets_hz,
@@ -250,12 +260,12 @@ def bnc_power_heterodyne_sweep(
 
 
 def main():
-    cw_powers = voltage_linspace(-20, 25, 100)
+    cw_powers = voltage_linspace(-20, 22, 100)
     # 25 max for f1, 20 max for f2
 
     bnc_power_heterodyne_sweep(
-        cw_freq=1.101e9,
-        comb_spacing= 1.101e9,
+        cw_freq=2.101e9,
+        homodyne=False,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,
         harmonics=(-2, -1, 0, 1, 2),

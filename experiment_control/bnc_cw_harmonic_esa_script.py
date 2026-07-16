@@ -302,10 +302,10 @@ def bnc_cw_heterodyne_sweep(
 
 
 def main():
-    center_freq = 1.110e9
+    center_freq = 2*2.102e9
     span = 100e6
     cw_freqs = np.linspace(center_freq - span / 2, center_freq + span / 2, 50)
-    # cw_freqs = np.linspace(0.5e9, 5e9, 3000)
+    # cw_freqs = np.linspace(1.8e9, 2.4e9, 200)
 
     bnc_cw_heterodyne_sweep(
         cw_freqs=cw_freqs,

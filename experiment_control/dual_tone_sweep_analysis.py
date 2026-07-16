@@ -12,7 +12,7 @@ from path_utils import local_path
 # ------------------------------------------------------------------
 
 # DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
-DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_360_point_sweep.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-16-13-55-04.npz"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -89,6 +89,13 @@ SPLIT_GROUPS = [
     {'harmonics': [-2, 2],  'ymin': 0,   'ymax': 18,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_pm2.svg'},
 ]
 
+# ── calibration scaling ───────────────────────────────────────────────────────
+# Per-harmonic multiplicative correction applied to the conversion efficiency
+# after all normalization. Keys are harmonic orders (int); missing orders are
+# left unchanged. Set to None to disable.
+# Example: {1: 2.0, -1: 2.0} doubles the measured ±1 sideband power.
+CALIBRATION_DICT = None # {-2: 1.12, -1: 1.33, 0: 1.08, 1: 1.168, 2: 1.136}
+
 # ── publication export ────────────────────────────────────────────────────────
 # When True: removes axis/tick labels, legend, and title; saves SVGs.
 FOR_PUBLICATION = False
@@ -139,6 +146,15 @@ def main():
             data.spectra_all = None      # suppress scatter / error band
             data.cal_spectra_all = None
             data.n_repeats = 1
+
+    if CALIBRATION_DICT:
+        for j, n in enumerate(data.harmonics):
+            factor = CALIBRATION_DICT.get(int(n), 1.0)
+            if factor != 1.0:
+                db_shift = 10.0 * np.log10(max(factor, 1e-30))
+                data.spectra[:, j, :] += db_shift
+                if data.spectra_all is not None:
+                    data.spectra_all[:, :, j, :] += db_shift
 
     print(f"Loaded: {DATA_FILE}")
     try:

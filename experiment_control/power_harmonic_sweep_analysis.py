@@ -12,7 +12,7 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\f1_power_sweeppower_harmonic_sweep_2026-06-16-14-17-45.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\f1_third_power_sweeppower_harmonic_sweep_2026-07-16-11-00-58.npz"
 
 # X-axis for all plots: 'voltage' (V_rms) or 'dbm' (drive power in dBm).
 X_AXIS = 'dbm'

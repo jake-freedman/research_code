@@ -22,7 +22,7 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding"
 
 
 def _sweep_avg(esa, n_avg: int):
@@ -284,15 +284,15 @@ def bnc_2d_power_phase_sweep(
 def main():
     P = 18
     bnc_2d_power_phase_sweep(
-        cw_freq=1.146e9,
-        ch1_power_min_dbm=-10,
-        ch1_power_max_dbm=24,
-        ch1_n_points=10,
-        ch2_power_min_dbm=-10,
-        ch2_power_max_dbm=15,
-        ch2_n_points=10,
+        cw_freq=1.130e9,
+        ch1_power_min_dbm=18,
+        ch1_power_max_dbm=21.5,
+        ch1_n_points=5,
+        ch2_power_min_dbm=13,
+        ch2_power_max_dbm=17,
+        ch2_n_points=5,
         ch2_phases_deg=np.linspace(0, 360, P, endpoint=True),
-        harmonics=(-1,),
+        harmonics=(-3,-2,-1,0,1,2,3),
         heterodyne_shift=125e6,
         window_hz=2e6,
         esa_freq_step=2e6/1001,

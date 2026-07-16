@@ -543,7 +543,7 @@ def main():
         use_cxa=True,
         per_step_calibration=False,
         averages_per_point=1,
-        n_sweep_repeats=1,
+        n_sweep_repeats=5,
         sideband_sum_calibration=True,
         ch2_enabled=True,
         ch1_enabled=True,
