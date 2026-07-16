@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'experime
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from matplotlib.widgets import CheckButtons, Slider
 from scipy.special import jv as bessel_jv
 from power_harmonic_sweep_data import PowerHeterodyneSweepData
@@ -50,13 +51,13 @@ tick_label_fontsize = 8
 
 # Same harmonic color scheme as dual_tone_sweep_analysis.py / dual_tone_sweep_data.py
 _HARMONIC_COLORS = {
-    -3: '#bf7362',
+    -4: '#bf7362',
     -2: RED2,
     -1: ORANGE2,
      0: GREEN2,
      1: LIGHTBLUE2,
      2: '#5c70aa',
-     3: VIOLET2,
+     4: VIOLET2,
 }
 _EXTRA_COLORS = [BLUE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2, DARKGRAY2]
 
@@ -64,7 +65,7 @@ _EXTRA_COLORS = [BLUE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2, DARKGRAY2]
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\wg6_mode1_calibration.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\wg6_mode1_calibration.npz"
 
 # X-axis for the sideband/calibration plots: 'voltage' (V_rms) or 'dbm'.
 # (Anchor V_pi values are always computed from the true RF voltage,
@@ -86,6 +87,15 @@ SHOW_LEGEND = False
 
 # None = show all recorded harmonics; list = show only those orders.
 HARMONICS_TO_SHOW = None
+
+# If True, recorded harmonic order n is displayed as order 2*n everywhere it's
+# plotted, colored, or labeled (e.g. the drive is already at 2x some
+# fundamental of interest, so what's recorded as n is physically the 2n'th
+# sideband). Purely a display remap: data indexing (which spectra column n
+# selects), ANCHOR_POINTS/HARMONICS_TO_SHOW/THEORY_HARMONICS/CORRECTED_HARMONICS
+# filtering, and the Bessel-order physics (bessel_jv(n, beta)) all still use
+# the raw recorded n.
+IS_HARMONIC = False
 
 # Y-axis limits for sideband power plot. None = auto.
 if NORMALIZE == 'percent':
@@ -147,7 +157,7 @@ SIDEBAND_ZORDER           = 2
 
 ANCHOR_POINTS = [
     {'harmonic': 1, 'beta_zero': 1.8412, 'window': (0.5, 4.0), 'kind': 'max', 'label': 'J1 1st max'},
-    # {'harmonic': 0, 'beta_zero': 2.405, 'window': (0.5, 4.5), 'label': 'J0 1st null'},
+    {'harmonic': 0, 'beta_zero': 2.405, 'window': (0.5, 4.5), 'label': 'J0 1st null'},
 
     # Inflection points (curvature zeros of J_n(beta)^2, numerically rooted --
     # not standard tabulated constants). Voltages below use V_pi = 1.5605 V,
@@ -217,7 +227,7 @@ THEORY_ZORDER     = 10
 # to that harmonic's data at every voltage, so its curve is shifted by a
 # fixed factor to match theory at the reference point. Requires per-step
 # calibration (cal_spectra).
-CORRECTION_VOLTAGE =  0.84 #2.6   # reference RF voltage in V_rms; None = disabled
+CORRECTION_VOLTAGE = 0.82   # reference RF voltage in V_rms; None = disabled
 # Which anchor's V_pi supplies the theory reference at CORRECTION_VOLTAGE:
 # None = mean V_pi across all successfully found anchors; otherwise an
 # ANCHOR_POINTS index or anchor 'label' string.
@@ -232,7 +242,7 @@ APPLY_CORRECTION = True
 # the current voltage, or the raw uncorrected data when unchecked), without
 # re-running the script. Purely a plot interaction; the CORRECTION_VOLTAGE
 # setting above (and its printed summary) is unchanged.
-INTERACTIVE_CORRECTION_SLIDER = True
+INTERACTIVE_CORRECTION_SLIDER = False
 # Slider range in true V_rms. None = the full measured sweep range.
 CORRECTION_SLIDER_RANGE = None
 CORRECTION_SLIDER_LABEL = 'Correction V'
@@ -263,8 +273,8 @@ CORRECTION_MIN_CE = 0.05   # 5%, linear fraction of carrier power
 CORRECTED_HARMONICS = None
 
 CORRECTED_LINE_COLOR   = None   # None = match the harmonic's sideband color
-CORRECTED_LINESTYLE    = '-'
-CORRECTED_LINEWIDTH    = 1.5
+CORRECTED_LINESTYLE    = 'none'
+CORRECTED_LINEWIDTH    = 0.00
 CORRECTED_ALPHA        = 1.0
 CORRECTED_ZORDER       = 4
 
@@ -273,6 +283,71 @@ CORRECTED_CLOUD_ALPHA         = 0.25   # 1-sigma band (darker/more opaque)
 CORRECTED_CLOUD_ALPHA_2SIGMA  = 0.12   # 2-sigma band (lighter)
 CORRECTED_CLOUD_ZORDER        = 3
 CORRECTED_CLOUD_ZORDER_2SIGMA = 2      # drawn behind the 1-sigma band
+
+# ── correction factor bar plot ─────────────────────────────────────────────────
+# Plot each harmonic's multi-voltage correction factor (the same
+# factors_mean/factors_std that feed SHOW_CORRECTED_CLOUD above) as a colored
+# bar vs harmonic order, in dB or linear scale. The bar is mostly solid from
+# 0 up to (mean - std), then mostly transparent from (mean - std) to
+# (mean + std); a mostly-solid line marks the mean itself, slightly narrower
+# than the bar. Independent of SHOW_CORRECTED_CLOUD (each can be on without
+# the other), but both draw from the same multi-voltage sampling, so it still
+# requires per-step calibration (cal_spectra).
+SHOW_CORRECTION_BAR_PLOT = True
+CORRECTION_BAR_SCALE = 'linear'   # 'db' (10*log10(factor)) or 'linear'
+
+CORRECTION_BAR_WIDTH      = 0.6    # bar width, in harmonic-order units
+CORRECTION_BAR_LINESTYLE  = '-'
+CORRECTION_BAR_LINEWIDTH  = 1.5
+CORRECTION_BAR_EDGE_COLOR = None   # None = match the harmonic's color
+CORRECTION_BAR_EDGE_ALPHA = 1.0
+CORRECTION_BAR_FACE_COLOR = None   # None = match the harmonic's color
+CORRECTION_BAR_FACE_ALPHA = 1.00     # solid segment: 0 to (mean - std)
+CORRECTION_BAR_UNCERTAIN_ALPHA = 0.4   # transparent segment: (mean - std) to (mean + std)
+
+# Marks the exact mean value at the bar's top with a marker; None = no marker
+# (independent of, and in addition to, the mean line below).
+CORRECTION_BAR_MARKER             = None
+CORRECTION_BAR_MARKERSIZE         = 6
+CORRECTION_BAR_MARKER_FACECOLOR   = None   # None = match the harmonic's color
+CORRECTION_BAR_MARKER_FACE_ALPHA  = 1.0
+CORRECTION_BAR_MARKER_EDGECOLOR   = None   # None = match the harmonic's color
+CORRECTION_BAR_MARKER_EDGE_ALPHA  = 1.0
+
+# Mostly-solid horizontal line marking the mean, narrower than the bar.
+CORRECTION_BAR_MEAN_LINE_COLOR      = None   # None = match the harmonic's color
+CORRECTION_BAR_MEAN_LINE_ALPHA      = 0.95
+CORRECTION_BAR_MEAN_LINE_WIDTH      = 1.5    # linewidth, in points
+CORRECTION_BAR_MEAN_LINE_WIDTH_FRAC = 0.8    # fraction of CORRECTION_BAR_WIDTH
+
+CORRECTION_BAR_ZERO_LINE      = True
+CORRECTION_BAR_ZERO_LINEWIDTH = 1.0
+CORRECTION_BAR_ZERO_COLOR     = '#777777'
+CORRECTION_BAR_ZERO_LINESTYLE = '-'
+
+CORRECTION_BAR_ZORDER            = 2   # solid segment
+CORRECTION_BAR_UNCERTAIN_ZORDER  = 3   # transparent segment
+CORRECTION_BAR_MEAN_LINE_ZORDER  = 4
+CORRECTION_BAR_MARKER_ZORDER     = 5
+CORRECTION_BAR_ZERO_ZORDER       = 10
+
+CORRECTION_BAR_SHOW_GRID   = True
+CORRECTION_BAR_SHOW_LEGEND = False
+
+# Axis limits: None = auto.
+CORRECTION_BAR_XLIM = None
+CORRECTION_BAR_YLIM = [0.5, 1.5]
+
+# Axes size in mm, and this plot's own figure buffer in mm around that axes
+# (independent of the shared graphics.py buffer used by the other plots here).
+CORRECTION_BAR_AXES_WIDTH_MM  = 100
+CORRECTION_BAR_AXES_HEIGHT_MM = 40
+CORRECTION_BAR_MARGIN_LEFT_MM   = 18
+CORRECTION_BAR_MARGIN_BOTTOM_MM = 14
+CORRECTION_BAR_MARGIN_RIGHT_MM  = 4
+CORRECTION_BAR_MARGIN_TOP_MM    = 4
+
+CORRECTION_BAR_SVG_NAME = 'vpi_anchor_correction_bars.svg'
 
 # ── figure size (mm) ───────────────────────────────────────────────────────────
 axes_width_mm  = 100
@@ -304,13 +379,10 @@ def load_averaged(filepath: str) -> PowerHeterodyneSweepData:
         spectra = 10.0 * np.log10((10.0 ** (spectra / 10.0)).mean(axis=0))
     elif spectra.ndim != 3:
         raise ValueError(f"Unexpected spectra shape {spectra.shape} in {filepath}")
-    spectra = spectra[np.newaxis]  # (M, N, K) -> (1, M, N, K) to match peak_powers_dbm()
 
     cal = d['cal_spectra'] if 'cal_spectra' in d else None
     if cal is not None and cal.ndim == 3:
         cal = 10.0 * np.log10((10.0 ** (cal / 10.0)).mean(axis=0))
-    if cal is not None:
-        cal = cal[np.newaxis]  # (M, K) -> (1, M, K) to match cal_peak_power_dbm()
 
     data = PowerHeterodyneSweepData.__new__(PowerHeterodyneSweepData)
     data.cw_freq          = float(d['cw_freq'])
@@ -372,11 +444,24 @@ def _harmonic_idx(data: PowerHeterodyneSweepData, n: int) -> int:
     return int(idx[0])
 
 
+def _display_order(n: int) -> int:
+    """Map a recorded harmonic index to its display order (see IS_HARMONIC).
+    Affects only plotting/coloring/labeling -- data indexing and Bessel-order
+    physics elsewhere still use the raw recorded n."""
+    return 2 * n if IS_HARMONIC else n
+
+
 def _build_harmonic_colors(harmonics) -> dict:
-    """Map each harmonic number to a color, using _HARMONIC_COLORS with
-    _EXTRA_COLORS as a fallback for orders not in that table."""
+    """Map each harmonic number to a color, using _HARMONIC_COLORS (keyed by
+    display order, see IS_HARMONIC) with _EXTRA_COLORS as a fallback for
+    orders not in that table. Still keyed by the raw recorded n, so callers
+    look it up the same way regardless of IS_HARMONIC."""
     extra_iter = iter(_EXTRA_COLORS)
-    return {int(n): _HARMONIC_COLORS.get(int(n), next(extra_iter, '#000000')) for n in harmonics}
+    colors = {}
+    for n in harmonics:
+        n = int(n)
+        colors[n] = _HARMONIC_COLORS.get(_display_order(n), next(extra_iter, '#000000'))
+    return colors
 
 
 def _make_figure(w_mm: float, h_mm: float):
@@ -593,7 +678,153 @@ def plot_corrected_cloud(ax, data: PowerHeterodyneSweepData, x: np.ndarray, norm
                          linewidth=0)
         ax.plot(x, mean_curve, color=line_color, linestyle=CORRECTED_LINESTYLE,
                 linewidth=CORRECTED_LINEWIDTH, alpha=CORRECTED_ALPHA,
-                zorder=CORRECTED_ZORDER, label=f'Harmonic {n} corrected (mean±std)')
+                zorder=CORRECTED_ZORDER, label=f'Harmonic {_display_order(n)} corrected (mean±std)')
+
+
+def _make_margin_figure(w_mm: float, h_mm: float, left_mm: float, bottom_mm: float,
+                         right_mm: float, top_mm: float):
+    """Like _make_figure(), but with its own independent margins rather than
+    the shared graphics.py buffer -- for plots that need their own figure
+    buffer, separately user-controllable from the rest of the module."""
+    mm = 1.0 / 25.4
+    total_w_mm = left_mm + w_mm + right_mm
+    total_h_mm = bottom_mm + h_mm + top_mm
+    fig, ax = plt.subplots(figsize=(total_w_mm * mm, total_h_mm * mm))
+    fig.subplots_adjust(
+        left=left_mm / total_w_mm,
+        right=(left_mm + w_mm) / total_w_mm,
+        bottom=bottom_mm / total_h_mm,
+        top=(bottom_mm + h_mm) / total_h_mm,
+    )
+    return fig, ax
+
+
+def _style_correction_bar_axes(ax):
+    """Fixed styling for the correction-factor bar plot: linewidth-2 spines
+    and ticks, ticks facing inward."""
+    ax.tick_params(axis='both', direction='in', width=2, labelsize=tick_label_fontsize)
+    for side in ax.spines.values():
+        side.set_linewidth(2)
+
+
+def _draw_bar_uncertainty(ax, x_center: float, width: float, y_mean: float, y_std: float,
+                           color, alpha: float, zorder: float):
+    """
+    Flat, mostly-transparent block from (y_mean - y_std) to (y_mean + y_std),
+    same width as the bar -- the "uncertain" continuation above the bar's
+    solid segment (which stops at y_mean - y_std).
+    """
+    if y_std <= 0:
+        return
+    ax.bar(x_center, 2.0 * y_std, width=width, bottom=y_mean - y_std,
+           facecolor=mcolors.to_rgba(color, alpha), edgecolor='none', zorder=zorder)
+
+
+def _draw_bar_mean_line(ax, x_center: float, width: float, y_mean: float,
+                         color, alpha: float, linewidth: float, zorder: float):
+    """Mostly-solid horizontal line marking the mean, narrower than the bar."""
+    ax.plot([x_center - width / 2, x_center + width / 2], [y_mean, y_mean],
+            color=mcolors.to_rgba(color, alpha), linewidth=linewidth,
+            solid_capstyle='round', zorder=zorder)
+
+
+def plot_correction_factor_bars(harmonics, factors_mean: dict, factors_std: dict,
+                                 harmonic_colors: dict):
+    """
+    Plot each harmonic's multi-voltage correction factor as a colored bar vs
+    harmonic order (CORRECTION_BAR_SCALE: 'db' or 'linear'). The bar is
+    mostly solid from 0 to (mean - std), then mostly transparent from
+    (mean - std) to (mean + std); a mostly-solid line marks the mean itself,
+    narrower than the bar.
+    """
+    orders = sorted(n for n in harmonics if n in factors_mean)
+    if not orders:
+        raise RuntimeError(
+            "No harmonics have a valid correction factor to plot -- check "
+            "CORRECTION_MIN_CE isn't excluding everything."
+        )
+
+    scale = CORRECTION_BAR_SCALE
+    if scale not in ('db', 'linear'):
+        raise ValueError(f"CORRECTION_BAR_SCALE must be 'db' or 'linear', got {scale!r}")
+
+    def _to_scale(f):
+        return 10.0 * np.log10(max(f, 1e-30)) if scale == 'db' else f
+
+    def _std_to_scale(mean_f, std_f):
+        if scale == 'linear':
+            return std_f
+        # dB is nonlinear in f; propagate the std via d(dB)/df = 10/(ln(10)*f).
+        return (10.0 / (np.log(10.0) * max(mean_f, 1e-30))) * std_f
+
+    fig, ax = _make_margin_figure(
+        CORRECTION_BAR_AXES_WIDTH_MM, CORRECTION_BAR_AXES_HEIGHT_MM,
+        CORRECTION_BAR_MARGIN_LEFT_MM, CORRECTION_BAR_MARGIN_BOTTOM_MM,
+        CORRECTION_BAR_MARGIN_RIGHT_MM, CORRECTION_BAR_MARGIN_TOP_MM,
+    )
+
+    if CORRECTION_BAR_ZERO_LINE:
+        ax.axhline(0.0, color=CORRECTION_BAR_ZERO_COLOR, linewidth=CORRECTION_BAR_ZERO_LINEWIDTH,
+                   linestyle=CORRECTION_BAR_ZERO_LINESTYLE, solid_capstyle='round',
+                   zorder=CORRECTION_BAR_ZERO_ZORDER)
+
+    for n in orders:
+        color = harmonic_colors.get(n, '#000000')
+        edge_color = CORRECTION_BAR_EDGE_COLOR if CORRECTION_BAR_EDGE_COLOR is not None else color
+        face_color = CORRECTION_BAR_FACE_COLOR if CORRECTION_BAR_FACE_COLOR is not None else color
+        marker_face = (CORRECTION_BAR_MARKER_FACECOLOR
+                       if CORRECTION_BAR_MARKER_FACECOLOR is not None else color)
+        marker_edge = (CORRECTION_BAR_MARKER_EDGECOLOR
+                       if CORRECTION_BAR_MARKER_EDGECOLOR is not None else color)
+
+        y_mean = _to_scale(factors_mean[n])
+        y_std = _std_to_scale(factors_mean[n], factors_std[n])
+        x_pos = _display_order(n)
+        label = 'Carrier (n=0)' if n == 0 else f'Harmonic {x_pos}'
+
+        solid_top = y_mean - y_std if y_std > 0 else y_mean
+        bars = ax.bar(
+            x_pos, solid_top, width=CORRECTION_BAR_WIDTH,
+            facecolor=mcolors.to_rgba(face_color, CORRECTION_BAR_FACE_ALPHA),
+            edgecolor=mcolors.to_rgba(edge_color, CORRECTION_BAR_EDGE_ALPHA),
+            linewidth=CORRECTION_BAR_LINEWIDTH, linestyle=CORRECTION_BAR_LINESTYLE,
+            zorder=CORRECTION_BAR_ZORDER, label=label,
+        )
+        for patch in bars:
+            patch.set_capstyle('round')
+
+        _draw_bar_uncertainty(ax, x_pos, CORRECTION_BAR_WIDTH, y_mean, y_std, face_color,
+                               CORRECTION_BAR_UNCERTAIN_ALPHA, CORRECTION_BAR_UNCERTAIN_ZORDER)
+
+        mean_line_color = (CORRECTION_BAR_MEAN_LINE_COLOR
+                           if CORRECTION_BAR_MEAN_LINE_COLOR is not None else color)
+        _draw_bar_mean_line(ax, x_pos, CORRECTION_BAR_WIDTH * CORRECTION_BAR_MEAN_LINE_WIDTH_FRAC,
+                            y_mean, mean_line_color, CORRECTION_BAR_MEAN_LINE_ALPHA,
+                            CORRECTION_BAR_MEAN_LINE_WIDTH, CORRECTION_BAR_MEAN_LINE_ZORDER)
+
+        if CORRECTION_BAR_MARKER is not None:
+            ax.plot(
+                [x_pos], [y_mean], marker=CORRECTION_BAR_MARKER, markersize=CORRECTION_BAR_MARKERSIZE,
+                markerfacecolor=mcolors.to_rgba(marker_face, CORRECTION_BAR_MARKER_FACE_ALPHA),
+                markeredgecolor=mcolors.to_rgba(marker_edge, CORRECTION_BAR_MARKER_EDGE_ALPHA),
+                linestyle='none', zorder=CORRECTION_BAR_MARKER_ZORDER,
+            )
+
+    ax.set_xticks([_display_order(n) for n in orders])
+    ax.set_xticklabels([str(_display_order(n)) for n in orders])
+    ax.set_xlabel('Harmonic order', fontsize=axis_label_fontsize)
+    ax.set_ylabel('Correction factor [dB]' if scale == 'db' else 'Correction factor (linear)',
+                  fontsize=axis_label_fontsize)
+    if CORRECTION_BAR_XLIM is not None:
+        ax.set_xlim(CORRECTION_BAR_XLIM)
+    if CORRECTION_BAR_YLIM is not None:
+        ax.set_ylim(CORRECTION_BAR_YLIM)
+    if CORRECTION_BAR_SHOW_GRID:
+        ax.grid(True, alpha=0.3, zorder=0)
+    if CORRECTION_BAR_SHOW_LEGEND:
+        ax.legend(fontsize=tick_label_fontsize, frameon=False)
+    _style_correction_bar_axes(ax)
+    return fig, ax
 
 
 def plot_sideband_powers(data: PowerHeterodyneSweepData, x: np.ndarray, xlabel: str,
@@ -621,7 +852,7 @@ def plot_sideband_powers(data: PowerHeterodyneSweepData, x: np.ndarray, xlabel: 
         color = harmonic_colors[n]
         face = SIDEBAND_MARKER_FACECOLOR if SIDEBAND_MARKER_FACECOLOR is not None else color
         edge = SIDEBAND_MARKER_EDGECOLOR if SIDEBAND_MARKER_EDGECOLOR is not None else color
-        label = 'Carrier (n=0)' if n == 0 else f'Harmonic {n}'
+        label = 'Carrier (n=0)' if n == 0 else f'Harmonic {_display_order(n)}'
         line, = ax.plot(
             x, peaks[:, j],
             color=color, linestyle=SIDEBAND_LINESTYLE, linewidth=SIDEBAND_LINEWIDTH,
@@ -729,7 +960,7 @@ def plot_ce_derivative(data: PowerHeterodyneSweepData, x: np.ndarray, xlabel: st
         dydx = np.gradient(peaks[:, j], x)
         derivatives[n] = dydx
         color = harmonic_colors[n]
-        label = 'Carrier (n=0)' if n == 0 else f'Harmonic {n}'
+        label = 'Carrier (n=0)' if n == 0 else f'Harmonic {_display_order(n)}'
         ax.plot(
             x, dydx,
             color=color, linestyle=DERIVATIVE_LINESTYLE, linewidth=DERIVATIVE_LINEWIDTH,
@@ -778,7 +1009,7 @@ def plot_theory_curves(ax, data: PowerHeterodyneSweepData, x: np.ndarray, normal
                 color=color, linestyle=THEORY_LINESTYLE, linewidth=THEORY_LINEWIDTH,
                 marker=THEORY_MARKER, markersize=THEORY_MARKERSIZE,
                 alpha=THEORY_ALPHA, zorder=THEORY_ZORDER,
-                label=f'{label}: theory n={n}',
+                label=f'{label}: theory n={_display_order(n)}',
             )
 
 
@@ -919,7 +1150,8 @@ def main():
         if SHOW_LEGEND:
             ax_deriv.legend(fontsize=tick_label_fontsize, frameon=False)
 
-    if SHOW_CORRECTED_CLOUD:
+    fig_bar, ax_bar = None, None
+    if SHOW_CORRECTED_CLOUD or SHOW_CORRECTION_BAR_PLOT:
         vpi_ref_cloud = _resolve_vpi_source(anchor_results, CORRECTION_VPI_SOURCE)
         v_min, v_max = CORRECTION_VOLTAGE_RANGE
         factors_mean, factors_std, n_used = compute_correction_factors_multi(
@@ -935,12 +1167,17 @@ def main():
                 print(f"  Harmonic {n}: no samples passed "
                       f"CORRECTION_MIN_CE={CORRECTION_MIN_CE:.3f}")
 
-        corrected_harmonics = (
-            CORRECTED_HARMONICS if CORRECTED_HARMONICS is not None
-            else (HARMONICS_TO_SHOW if HARMONICS_TO_SHOW is not None else list(data.harmonics))
-        )
-        plot_corrected_cloud(ax_pow, data, x, normalize, corrected_harmonics,
-                              factors_mean, factors_std, harmonic_colors)
+        if SHOW_CORRECTED_CLOUD:
+            corrected_harmonics = (
+                CORRECTED_HARMONICS if CORRECTED_HARMONICS is not None
+                else (HARMONICS_TO_SHOW if HARMONICS_TO_SHOW is not None else list(data.harmonics))
+            )
+            plot_corrected_cloud(ax_pow, data, x, normalize, corrected_harmonics,
+                                  factors_mean, factors_std, harmonic_colors)
+
+        if SHOW_CORRECTION_BAR_PLOT:
+            fig_bar, ax_bar = plot_correction_factor_bars(
+                data.harmonics, factors_mean, factors_std, harmonic_colors)
 
     if SHOW_THEORY:
         try:
@@ -983,6 +1220,8 @@ def main():
             _apply_pub_style(fig_cal, ax_cal, CALIBRATION_SVG_NAME)
         if fig_deriv is not None:
             _apply_pub_style(fig_deriv, ax_deriv, DERIVATIVE_SVG_NAME)
+        if fig_bar is not None:
+            _apply_pub_style(fig_bar, ax_bar, CORRECTION_BAR_SVG_NAME)
 
     plt.show()
 
