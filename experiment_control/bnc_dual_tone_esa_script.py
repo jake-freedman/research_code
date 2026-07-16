@@ -35,7 +35,7 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
 
 
 def _sweep_avg(esa, n_avg: int, return_all: bool = False):
@@ -513,14 +513,14 @@ def bnc_dual_tone_sweep(
 
 def main():
 
-    M = 36
-    f0 = 1.146e9
+    M = 360
+    f0 = 1.130e9
 
     # Example: sweep channel 2 phase 0–360°, all other params fixed
     drive_freqs    = np.ones(M) * f0
-    ch1_powers_dbm = np.ones(M) * (23.3)
+    ch1_powers_dbm = np.ones(M) * (23.8) # max 25
     # ch1_powers_dbm = np.linspace(0, 23.5, M)
-    ch2_powers_dbm = np.ones(M) * 7.6
+    ch2_powers_dbm = np.ones(M) * 11 # max 20
     # ch2_powers_dbm = np.linspace(-10, 15, M)
     ch1_phases_deg = np.ones(M) * 0.0
     # ch2_phases_deg = np.ones(M) * 100
@@ -535,7 +535,7 @@ def main():
         harmonics=(-2, -1,0,1, 2),
         heterodyne_shift=125e6,
         window_hz=1e6,
-        esa_freq_step=2e6/1000,
+        esa_freq_step=2e6/1001,
         esa_res_bw=10e3,
         esa_ref_level=-20,
         settle_time_s=0.05,

@@ -108,11 +108,22 @@ class PowerHeterodyneSweepData:
         self.harmonics: np.ndarray = d['harmonics'].astype(int)
         self.heterodyne_shift: float = float(d['heterodyne_shift'])
         self.offsets_hz: np.ndarray = d['offsets_hz']
-        self.spectra: np.ndarray = d['spectra']
         self.window_hz: float = float(d['window_hz'])
-        self.cal_spectra: np.ndarray | None = (
-            d['cal_spectra'] if 'cal_spectra' in d else None
-        )
+
+        # Normalize spectra to (R, M, N, K); legacy files are (M, N, K).
+        raw = d['spectra']
+        self.spectra: np.ndarray = raw[np.newaxis] if raw.ndim == 3 else raw
+        self.n_repeats: int = self.spectra.shape[0]
+
+        if 'cal_spectra' in d:
+            raw_cal = d['cal_spectra']
+            # Legacy cal_spectra is (M, K); new format is (R, M, K).
+            self.cal_spectra: np.ndarray | None = (
+                raw_cal[np.newaxis] if raw_cal.ndim == 2 else raw_cal
+            )
+        else:
+            self.cal_spectra = None
+
         self.filepath = filepath
 
     @classmethod
@@ -134,20 +145,30 @@ class PowerHeterodyneSweepData:
         return _dbm_to_vrms(self.cw_powers)
 
     def peak_powers_dbm(self) -> np.ndarray:
-        """Peak power in each harmonic window at every power step, shape (M, N)."""
-        return self.spectra.max(axis=2)
+        """Peak power per harmonic, averaged across repeats. Shape (M, N) in dBm."""
+        return self.spectra.max(axis=3).mean(axis=0)
+
+    def _peak_powers_per_repeat(self) -> np.ndarray:
+        """Peak power for every individual repeat. Shape (R, M, N) in dBm."""
+        return self.spectra.max(axis=3)
 
     def cal_peak_power_dbm(self) -> np.ndarray:
         """
-        Peak carrier power from the per-step calibration (RF off). Shape (M,).
-        Raises RuntimeError if the file was recorded without per_step_calibration.
+        Peak carrier power from the per-step calibration (RF off), averaged
+        across repeats. Shape (M,). Raises RuntimeError if cal_spectra absent.
         """
         if self.cal_spectra is None:
             raise RuntimeError(
                 "No per-step calibration in this file. "
                 "Record with per_step_calibration=True to enable normalisation."
             )
-        return self.cal_spectra.max(axis=1)
+        return self.cal_spectra.max(axis=2).mean(axis=0)
+
+    def _cal_per_repeat(self) -> np.ndarray:
+        """Peak calibration power for every individual repeat. Shape (R, M)."""
+        if self.cal_spectra is None:
+            raise RuntimeError("No cal_spectra in this file.")
+        return self.cal_spectra.max(axis=2)
 
     def normalized_peak_powers_dbm(self) -> np.ndarray:
         """
@@ -184,33 +205,44 @@ class PowerHeterodyneSweepData:
         np.ndarray, shape (M,)
             Modulation depth β in radians at each power step.
         """
+        return self._betas_per_repeat(
+            harmonic_numerator, harmonic_denominator, beta_guess
+        ).mean(axis=0)
+
+    def _betas_per_repeat(
+        self,
+        harmonic_numerator: int = 1,
+        harmonic_denominator: int = 0,
+        beta_guess: float | np.ndarray = 1.0,
+    ) -> np.ndarray:
+        """Modulation depth β for each (repeat, power step). Shape (R, M)."""
         idx_num = self._harmonic_index(harmonic_numerator)
         idx_den = self._harmonic_index(harmonic_denominator)
+        peaks_all = self._peak_powers_per_repeat()  # (R, M, N)
 
-        peaks = self.peak_powers_dbm()
-        p_num = 10.0 ** (peaks[:, idx_num] / 10.0)
-        p_den = 10.0 ** (peaks[:, idx_den] / 10.0)
-
+        betas_all = np.empty((self.n_repeats, len(self.cw_powers)))
         carry_forward = np.ndim(beta_guess) == 0
-        guesses = (np.full(len(self.cw_powers), float(beta_guess))
-                   if carry_forward else np.asarray(beta_guess, dtype=float))
 
-        betas = np.empty(len(self.cw_powers))
-        for i, (pn, pd) in enumerate(zip(p_num, p_den)):
-            target = np.sqrt(pn / pd)
+        for r in range(self.n_repeats):
+            p_num = 10.0 ** (peaks_all[r, :, idx_num] / 10.0)
+            p_den = 10.0 ** (peaks_all[r, :, idx_den] / 10.0)
+            guesses = (np.full(len(self.cw_powers), float(beta_guess))
+                       if carry_forward else np.asarray(beta_guess, dtype=float))
+            for i, (pn, pd) in enumerate(zip(p_num, p_den)):
+                target = np.sqrt(pn / pd)
 
-            def residual(beta, t=target):
-                return (
-                    bessel_jn(harmonic_numerator, beta)
-                    / bessel_jn(harmonic_denominator, beta)
-                    - t
-                )
+                def residual(beta, t=target):
+                    return (
+                        bessel_jn(harmonic_numerator, beta)
+                        / bessel_jn(harmonic_denominator, beta)
+                        - t
+                    )
 
-            betas[i] = float(fsolve(residual, guesses[i])[0])
-            if carry_forward and i + 1 < len(guesses):
-                guesses[i + 1] = betas[i]
+                betas_all[r, i] = float(fsolve(residual, guesses[i])[0])
+                if carry_forward and i + 1 < len(guesses):
+                    guesses[i + 1] = betas_all[r, i]
 
-        return betas
+        return betas_all
 
     def plot_peak_powers(
         self,
@@ -235,19 +267,32 @@ class PowerHeterodyneSweepData:
         x_axis : str
             'voltage' plots RMS voltage in V; 'dbm' plots drive power in dBm.
         """
+        peaks_all = self._peak_powers_per_repeat()  # (R, M, N) dBm
         if normalize == 'percent':
-            peaks  = 10.0 ** (self.normalized_peak_powers_dbm() / 10.0) * 100.0
+            cal_r = self._cal_per_repeat()           # (R, M) dBm
+            diff_r = peaks_all - cal_r[:, :, np.newaxis]
+            peaks_all_plot = 10.0 ** (diff_r / 10.0) * 100.0
             ylabel = 'Sideband power [% of carrier]'
         elif normalize:
-            peaks  = self.normalized_peak_powers_dbm()
+            cal_r = self._cal_per_repeat()
+            peaks_all_plot = peaks_all - cal_r[:, :, np.newaxis]
             ylabel = 'Sideband power [dBc]'
         else:
-            peaks  = self.peak_powers_dbm()
+            peaks_all_plot = peaks_all
             ylabel = 'Peak power [dBm]'
+        peaks = peaks_all_plot.mean(axis=0)  # (M, N)
         x, xlabel = _x_axis_values(self, x_axis)
         extra_iter = iter(_EXTRA_COLORS)
 
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
+        # Faint individual-repeat traces (only when more than one repeat).
+        if self.n_repeats > 1:
+            extra_iter2 = iter(_EXTRA_COLORS)
+            for j, n in enumerate(self.harmonics):
+                color = _HARMONIC_COLORS.get(int(n), next(extra_iter2, '#000000'))
+                for r in range(self.n_repeats):
+                    ax.plot(x, peaks_all_plot[r, :, j],
+                            color=color, linewidth=0.7, alpha=0.25)
         for j, n in enumerate(self.harmonics):
             color = _HARMONIC_COLORS.get(int(n), next(extra_iter, '#000000'))
             label = 'Carrier (n=0)' if n == 0 else f'Harmonic {n}'
@@ -314,10 +359,16 @@ class PowerHeterodyneSweepData:
             If True, overlay a linear fit and annotate the drive level at
             which β = π (V_π in voltage mode, P_π in dBm mode). Default False.
         """
-        betas = self.modulation_depth(harmonic_numerator, harmonic_denominator, beta_guess)
+        betas_all = self._betas_per_repeat(
+            harmonic_numerator, harmonic_denominator, beta_guess
+        )  # (R, M)
+        betas = betas_all.mean(axis=0)  # (M,)
         x, xlabel = _x_axis_values(self, x_axis)
 
         fig, ax = _make_figure(axes_width_mm, axes_height_mm)
+        if self.n_repeats > 1:
+            for r in range(self.n_repeats):
+                ax.plot(x, betas_all[r], color=BLUE2, linewidth=0.7, alpha=0.25)
         ax.plot(
             x, betas,
             color=BLUE2, linewidth=1.5, marker='o', markersize=4,

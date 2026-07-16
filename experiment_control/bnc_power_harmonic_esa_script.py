@@ -25,7 +25,7 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration"
 
 
 def voltage_linspace(p_start_dbm: float, p_stop_dbm: float, n: int) -> np.ndarray:
@@ -54,6 +54,8 @@ def bnc_power_heterodyne_sweep(
     cw_powers,
     heterodyne_shift: float = 125e6,
     harmonics=(0, 1),
+    comb_spacing: float = None,
+    n_repeats: int = 1,
     window_hz: float = 2e6,
     esa_freq_step: float = 0.25e6,
     esa_res_bw: float = 10e3,
@@ -66,8 +68,8 @@ def bnc_power_heterodyne_sweep(
 ) -> str:
     """
     Step the BNC 855B through output powers (channel 1) at a fixed CW frequency
-    and record a narrow ESA spectrum centred on n*f_cw + heterodyne_shift for
-    each harmonic.
+    and record a narrow ESA spectrum centred on n*comb_spacing + heterodyne_shift
+    for each harmonic.
 
     Data is saved in the same .npz format as vna_power_heterodyne_sweep() and
     can be loaded by PowerHeterodyneSweepData.
@@ -75,13 +77,21 @@ def bnc_power_heterodyne_sweep(
     Parameters
     ----------
     cw_freq : float
-        Fixed BNC channel 1 frequency in Hz.
+        Fixed BNC channel 1 drive frequency in Hz.
     cw_powers : array-like
         BNC channel 1 output powers in dBm.
     heterodyne_shift : float
         Offset of the LO from the signal in Hz. Default 125 MHz.
     harmonics : sequence of int
         Harmonic numbers to record. 0 = carrier beat. Default (0, 1).
+    comb_spacing : float, optional
+        Frequency spacing between comb teeth in Hz. Sideband n is looked up at
+        n*comb_spacing + heterodyne_shift. Defaults to cw_freq, which recovers
+        the original behaviour when drive and comb spacing are the same.
+    n_repeats : int
+        Number of times to repeat the full power sweep. Default 1 (single pass).
+        Saved spectra have shape (n_repeats, M, N, K); analysis plots show
+        individual repeats as faint traces with the mean as the main line.
     window_hz : float
         Half-width of each harmonic window in Hz. Default 2 MHz.
     esa_freq_step : float
@@ -109,12 +119,19 @@ def bnc_power_heterodyne_sweep(
     str
         Full path to the saved .npz file.
     """
+    if comb_spacing is None:
+        comb_spacing = cw_freq
     cw_powers = np.asarray(cw_powers)
     harmonics = list(harmonics)
+    comb_note = (
+        f", comb spacing {comb_spacing / 1e9:.4f} GHz"
+        if comb_spacing != cw_freq else ""
+    )
+    repeat_note = f", {n_repeats} repeats" if n_repeats > 1 else ""
     print(
         f"Starting BNC power sweep: {len(cw_powers)} steps "
         f"({cw_powers[0]:+.1f} to {cw_powers[-1]:+.1f} dBm) "
-        f"at {cw_freq / 1e9:.4f} GHz, "
+        f"at {cw_freq / 1e9:.4f} GHz{comb_note}{repeat_note}, "
         f"harmonics {harmonics}, shift {heterodyne_shift / 1e6:.1f} MHz"
         + (", per-step calibration ON" if per_step_calibration else "")
     )
@@ -126,9 +143,12 @@ def bnc_power_heterodyne_sweep(
     )
     full_path = os.path.join(DATA_FOLDER, fname)
 
-    all_spectra = []
-    all_cal_spectra = []
+    # all_repeats_spectra: list of completed (M, N, K) arrays, one per repeat
+    # all_repeats_cal:     list of completed (M, K) arrays, one per repeat
+    all_repeats_spectra = []
+    all_repeats_cal = []
     offsets_hz = None
+    K = None
 
     try:
         esa_cls, esa_addr = (CXA, CXA_RESOURCE_STRING) if use_cxa else (ESA, ESA_RESOURCE_STRING)
@@ -137,60 +157,77 @@ def bnc_power_heterodyne_sweep(
             sig.configure_channel(1, cw_freq, cw_powers[0])
             sig.enable_output(1)
 
-            for i, power in enumerate(cw_powers):
-                sig.set_power(1, power)
-                time.sleep(settle_time_s)
+            for r in range(n_repeats):
+                repeat_spectra = []   # M lists, each N arrays
+                repeat_cal = []       # M arrays
 
-                if per_step_calibration:
-                    sig.disable_output(1)
-                    esa.configure(
-                        start_freq=heterodyne_shift - window_hz,
-                        stop_freq=heterodyne_shift + window_hz,
-                        freq_step=esa_freq_step,
-                        res_bw=esa_res_bw,
-                        ref_level=esa_ref_level,
-                        attenuation=0.0,
-                    )
-                    _, cal_pwr = esa.sweep()
-                    all_cal_spectra.append(cal_pwr)
-                    if offsets_hz is None:
-                        offsets_hz = np.linspace(-window_hz, window_hz, len(cal_pwr))
-                    sig.enable_output(1)
+                for i, power in enumerate(cw_powers):
+                    sig.set_power(1, power)
                     time.sleep(settle_time_s)
 
-                harmonic_spectra = []
-                for n in harmonics:
-                    center = abs(n * cw_freq + heterodyne_shift)
-                    esa.configure(
-                        start_freq=center - window_hz,
-                        stop_freq=center + window_hz,
-                        freq_step=esa_freq_step,
-                        res_bw=esa_res_bw,
-                        ref_level=esa_ref_level,
-                        attenuation=0.0,
-                    )
-                    _, power_db = esa.sweep()
-                    harmonic_spectra.append(power_db)
+                    if per_step_calibration:
+                        sig.disable_output(1)
+                        esa.configure(
+                            start_freq=heterodyne_shift - window_hz,
+                            stop_freq=heterodyne_shift + window_hz,
+                            freq_step=esa_freq_step,
+                            res_bw=esa_res_bw,
+                            ref_level=esa_ref_level,
+                            attenuation=0.0,
+                        )
+                        _, cal_pwr = esa.sweep()
+                        repeat_cal.append(cal_pwr)
+                        if offsets_hz is None:
+                            K = len(cal_pwr)
+                            offsets_hz = np.linspace(-window_hz, window_hz, K)
+                        sig.enable_output(1)
+                        time.sleep(settle_time_s)
 
-                    if offsets_hz is None:
-                        offsets_hz = np.linspace(-window_hz, window_hz, len(power_db))
+                    harmonic_spectra = []
+                    for n in harmonics:
+                        center = abs(n * comb_spacing + heterodyne_shift)
+                        esa.configure(
+                            start_freq=center - window_hz,
+                            stop_freq=center + window_hz,
+                            freq_step=esa_freq_step,
+                            res_bw=esa_res_bw,
+                            ref_level=esa_ref_level,
+                            attenuation=0.0,
+                        )
+                        _, power_db = esa.sweep()
+                        harmonic_spectra.append(power_db)
+                        if offsets_hz is None:
+                            K = len(power_db)
+                            offsets_hz = np.linspace(-window_hz, window_hz, K)
 
-                all_spectra.append(harmonic_spectra)
-                print(f"Step {i + 1}/{len(cw_powers)}: {power:+.1f} dBm done.")
+                    repeat_spectra.append(harmonic_spectra)
+                    rep_label = f"Rep {r + 1}/{n_repeats}, " if n_repeats > 1 else ""
+                    print(f"{rep_label}step {i + 1}/{len(cw_powers)}: {power:+.1f} dBm done.")
+
+                # Repeat fully completed — store it.
+                all_repeats_spectra.append(
+                    np.array([[s[:K] for s in row] for row in repeat_spectra])
+                )
+                if per_step_calibration and repeat_cal:
+                    all_repeats_cal.append(np.array([s[:K] for s in repeat_cal]))
+
+            sig.disable_output(1)
 
     except Exception as exc:
-        print(f"ERROR at step {len(all_spectra) + 1}/{len(cw_powers)}: {exc}")
-        if not all_spectra:
+        r_done = len(all_repeats_spectra)
+        print(f"ERROR during repeat {r_done + 1}/{n_repeats}: {exc}")
+        if r_done == 0:
             raise
-        print(f"Saving partial data ({len(all_spectra)} of {len(cw_powers)} steps)...")
+        print(f"Saving {r_done}/{n_repeats} completed repeat(s)...")
 
-    K = len(offsets_hz)
-    n_done = len(all_spectra)
-    spectra_arr = np.array([[s[:K] for s in row] for row in all_spectra])
+    R_done = len(all_repeats_spectra)
+    spectra_arr = np.array(all_repeats_spectra)  # (R, M, N, K)
 
     save_kwargs = dict(
         cw_freq=np.array(cw_freq),
-        cw_powers=cw_powers[:n_done],
+        comb_spacing=np.array(comb_spacing),
+        n_repeats=np.array(n_repeats),
+        cw_powers=cw_powers,
         harmonics=np.array(harmonics),
         heterodyne_shift=np.array(heterodyne_shift),
         window_hz=np.array(window_hz),
@@ -198,12 +235,12 @@ def bnc_power_heterodyne_sweep(
         offsets_hz=offsets_hz,
         spectra=spectra_arr,
     )
-    if per_step_calibration and all_cal_spectra:
-        save_kwargs['cal_spectra'] = np.array([s[:K] for s in all_cal_spectra[:n_done]])
+    if per_step_calibration and all_repeats_cal:
+        save_kwargs['cal_spectra'] = np.array(all_repeats_cal)  # (R, M, K)
 
     np.savez_compressed(full_path, **save_kwargs)
 
-    print(f"Done. Saved {n_done}/{len(cw_powers)} steps to {full_path}")
+    print(f"Done. Saved {R_done}/{n_repeats} repeat(s) to {full_path}")
     if plot:
         data = PowerHeterodyneSweepData.from_file(full_path)
         data.plot_peak_powers()
@@ -213,22 +250,24 @@ def bnc_power_heterodyne_sweep(
 
 
 def main():
-    cw_powers = voltage_linspace(-20, 15, 50)
-    # 24 max for f1, 15 max for f2
+    cw_powers = voltage_linspace(-20, 25, 100)
+    # 25 max for f1, 20 max for f2
 
     bnc_power_heterodyne_sweep(
-        cw_freq=3*1.146e9,
+        cw_freq=(1/3) * 1.101e9,
+        comb_spacing= 1.101e9,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,
-        harmonics=(-1, 0, 1),
+        harmonics=(-2, -1, 0, 1, 2),
         window_hz=2e6,
         esa_freq_step=2e6/1001,
         esa_res_bw=10e3,
         esa_ref_level=-40,
         settle_time_s=0.05,
-        optional_name='f1_power_sweep',
+        optional_name='f1_third_power_sweep',
         use_cxa=True,
-        per_step_calibration=False,
+        per_step_calibration=True,
+        n_repeats=3
     )
 
 

@@ -44,7 +44,7 @@ def main():
 
 
         vna.configure(
-            start_freq = 0.1e9,
+            start_freq = 0.5e9,
             stop_freq = 10e9,
             freq_step = 0.5e6,
             power_dbm = 0,
@@ -55,7 +55,7 @@ def main():
         vna.apply_calibration()
 
         freqs, s11 = vna.sweep_s11()
-        path = vna.save_s11(freqs, s11, folder=folder_path, optional_name='w2_d21_wg5a_p5_')
+        path = vna.save_s11(freqs, s11, folder=folder_path, optional_name='w7_d2-1_wg10b_np_p1_')
         vna.plot_s11(freqs, s11, ymin=-15, ymax=1)
         plt.show()
 

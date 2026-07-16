@@ -25,7 +25,7 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration"
 
 
 def bnc_cw_harmonic_sweep(
@@ -302,16 +302,16 @@ def bnc_cw_heterodyne_sweep(
 
 
 def main():
-    center_freq = 1.145e9
+    center_freq = 1.110e9
     span = 100e6
-    # cw_freqs = np.linspace(center_freq - span / 2, center_freq + span / 2, 50)
-    cw_freqs = np.linspace(100e6, 3.5e9, 3500)
+    cw_freqs = np.linspace(center_freq - span / 2, center_freq + span / 2, 50)
+    # cw_freqs = np.linspace(0.5e9, 5e9, 3000)
 
     bnc_cw_heterodyne_sweep(
         cw_freqs=cw_freqs,
-        cw_power=5,
+        cw_power=10,
         heterodyne_shift=125e6,
-        harmonics=(0, 1),
+        harmonics=(0, 1,),
         window_hz=2e6,
         esa_freq_step=2e6/1001,
         esa_res_bw=10e3,

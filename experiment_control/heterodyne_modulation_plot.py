@@ -30,7 +30,7 @@ from graphics import (
 )
 
 # ── data ──────────────────────────────────────────────────────────────────────
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\test_heterodyne_sweep_2026-06-17-16-20-31.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\testheterodyne_sweep_2026-07-14-15-35-55.npz"
 
 # ── extraction ────────────────────────────────────────────────────────────────
 HARMONIC_NUMERATOR   = 1
@@ -58,7 +58,7 @@ SMOOTH = None # 10
 YMIN = 5
 YMAX = 60
 XMIN = None   # GHz, None = auto
-XMAX = None   # GHz, None = auto
+XMAX = 3.5   # GHz, None = auto
 
 # ── frequency highlights ──────────────────────────────────────────────────────
 # Lists of equal length. The line colour smoothly transitions from COLOR to

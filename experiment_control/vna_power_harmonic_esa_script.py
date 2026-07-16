@@ -22,7 +22,7 @@ VNA_RESOURCE_STRING = 'TCPIP0::Localhost::hislip0::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
 
 
 def voltage_linspace(p_start_dbm: float, p_stop_dbm: float, n: int) -> np.ndarray:
@@ -51,6 +51,7 @@ def vna_power_heterodyne_sweep(
     cw_powers,
     heterodyne_shift: float = 125e6,
     harmonics=(0, 1),
+    n_repeats: int = 1,
     window_hz: float = 2e6,
     esa_freq_step: float = 0.25e6,
     esa_res_bw: float = 10e3,
@@ -62,7 +63,7 @@ def vna_power_heterodyne_sweep(
 ) -> str:
     """
     Step the VNA through output powers at a fixed CW frequency and record a
-    narrow ESA spectrum centred on n*f_cw + heterodyne_shift for each harmonic.
+    narrow ESA spectrum centred on |n*f_cw + heterodyne_shift| for each harmonic.
 
     Parameters
     ----------
@@ -72,9 +73,13 @@ def vna_power_heterodyne_sweep(
         VNA output powers in dBm.
     heterodyne_shift : float
         Offset of the LO from the signal in Hz. ESA centre for harmonic n is
-        n*f_cw + heterodyne_shift. Default 125 MHz.
+        |n*f_cw + heterodyne_shift|. Default 125 MHz.
     harmonics : sequence of int
         Harmonic numbers to record. 0 = carrier beat. Default (0, 1).
+    n_repeats : int
+        Number of times to repeat the full power sweep. Default 1 (single pass).
+        Saved spectra have shape (n_repeats, M, N, K); analysis plots show
+        individual repeats as faint traces with the mean as the main line.
     window_hz : float
         Half-width of each harmonic window in Hz. Default 2 MHz.
     esa_freq_step : float
@@ -99,10 +104,11 @@ def vna_power_heterodyne_sweep(
     """
     cw_powers = np.asarray(cw_powers)
     harmonics = list(harmonics)
+    repeat_note = f", {n_repeats} repeats" if n_repeats > 1 else ""
     print(
-        f"Starting power sweep: {len(cw_powers)} steps "
+        f"Starting VNA power sweep: {len(cw_powers)} steps "
         f"({cw_powers[0]:+.1f} to {cw_powers[-1]:+.1f} dBm) "
-        f"at {cw_freq / 1e9:.4f} GHz, "
+        f"at {cw_freq / 1e9:.4f} GHz{repeat_note}, "
         f"harmonics {harmonics}, shift {heterodyne_shift / 1e6:.1f} MHz"
     )
 
@@ -113,58 +119,66 @@ def vna_power_heterodyne_sweep(
     )
     full_path = os.path.join(DATA_FOLDER, fname)
 
-    all_spectra = []
+    # all_repeats_spectra: list of completed (M, N, K) arrays, one per repeat
+    all_repeats_spectra = []
     offsets_hz = None
+    K = None
 
     try:
         esa_cls, esa_addr = (CXA, CXA_RESOURCE_STRING) if use_cxa else (ESA, ESA_RESOURCE_STRING)
         with VNA(VNA_RESOURCE_STRING) as vna, esa_cls(esa_addr) as esa:
             vna.set_cw_mode(cw_freq, cw_powers[0])
 
-            for i, power in enumerate(cw_powers):
-                vna.set_cw_power(power)
-                time.sleep(settle_time_s)
+            for r in range(n_repeats):
+                repeat_spectra = []   # M lists, each N arrays
 
-                harmonic_spectra = []
-                for n in harmonics:
-                    center = n * cw_freq + heterodyne_shift
-                    esa.configure(
-                        start_freq=center - window_hz,
-                        stop_freq=center + window_hz,
-                        freq_step=esa_freq_step,
-                        res_bw=esa_res_bw,
-                        ref_level=esa_ref_level,
-                        attenuation=0.0,
-                    )
-                    _, power_db = esa.sweep()
-                    harmonic_spectra.append(power_db)
+                for i, power in enumerate(cw_powers):
+                    vna.set_cw_power(power)
+                    time.sleep(settle_time_s)
 
-                    if offsets_hz is None:
-                        K = len(power_db)
-                        offsets_hz = np.linspace(-window_hz, window_hz, K)
+                    harmonic_spectra = []
+                    for n in harmonics:
+                        center = abs(n * cw_freq + heterodyne_shift)
+                        esa.configure(
+                            start_freq=center - window_hz,
+                            stop_freq=center + window_hz,
+                            freq_step=esa_freq_step,
+                            res_bw=esa_res_bw,
+                            ref_level=esa_ref_level,
+                            attenuation=0.0,
+                        )
+                        _, power_db = esa.sweep()
+                        harmonic_spectra.append(power_db)
+                        if offsets_hz is None:
+                            K = len(power_db)
+                            offsets_hz = np.linspace(-window_hz, window_hz, K)
 
-                all_spectra.append(harmonic_spectra)
-                print(
-                    f"Step {i + 1}/{len(cw_powers)}: "
-                    f"{power:+.1f} dBm done."
+                    repeat_spectra.append(harmonic_spectra)
+                    rep_label = f"Rep {r + 1}/{n_repeats}, " if n_repeats > 1 else ""
+                    print(f"{rep_label}step {i + 1}/{len(cw_powers)}: {power:+.1f} dBm done.")
+
+                # Repeat fully completed — store it.
+                all_repeats_spectra.append(
+                    np.array([[s[:K] for s in row] for row in repeat_spectra])
                 )
 
             vna.cw_off()
 
     except Exception as exc:
-        print(f"ERROR at step {len(all_spectra) + 1}/{len(cw_powers)}: {exc}")
-        if not all_spectra:
+        r_done = len(all_repeats_spectra)
+        print(f"ERROR during repeat {r_done + 1}/{n_repeats}: {exc}")
+        if r_done == 0:
             raise
-        print(f"Saving partial data ({len(all_spectra)} of {len(cw_powers)} steps)...")
+        print(f"Saving {r_done}/{n_repeats} completed repeat(s)...")
 
-    K = len(offsets_hz)
-    spectra_arr = np.array([[s[:K] for s in row] for row in all_spectra])
-    completed_powers = cw_powers[:len(all_spectra)]
+    R_done = len(all_repeats_spectra)
+    spectra_arr = np.array(all_repeats_spectra)  # (R, M, N, K)
 
     np.savez_compressed(
         full_path,
         cw_freq=np.array(cw_freq),
-        cw_powers=completed_powers,
+        n_repeats=np.array(n_repeats),
+        cw_powers=cw_powers,
         harmonics=np.array(harmonics),
         heterodyne_shift=np.array(heterodyne_shift),
         window_hz=np.array(window_hz),
@@ -173,9 +187,7 @@ def vna_power_heterodyne_sweep(
         spectra=spectra_arr,
     )
 
-    print(
-        f"Done. Saved {len(all_spectra)}/{len(cw_powers)} steps to {full_path}"
-    )
+    print(f"Done. Saved {R_done}/{n_repeats} repeat(s) to {full_path}")
     if plot:
         data = PowerHeterodyneSweepData.from_file(full_path)
         data.plot_peak_powers()
@@ -186,22 +198,23 @@ def vna_power_heterodyne_sweep(
 
 def main():
     # Evenly spaced in RMS voltage between -20 and +10 dBm bounds:
-    cw_powers = voltage_linspace(-20, 12, 40)
+    cw_powers = voltage_linspace(-20, 10, 40)
     # Or evenly spaced in dBm:
     # cw_powers = np.linspace(-20, 10, 40)
 
     vna_power_heterodyne_sweep(
-        cw_freq=1*1.164e9,
+        cw_freq=(1/3)*1.130e9,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,
-        harmonics=(0, 1),
+        harmonics=(0, 1, 2, 3),
         window_hz=2e6,
-        esa_freq_step=0.25e6,
+        esa_freq_step=2e6/1001,
         esa_res_bw=10e3,
         esa_ref_level=-40,
         settle_time_s=0.05,
         optional_name='test_',
         use_cxa=True,
+        n_repeats=1
     )
 
 

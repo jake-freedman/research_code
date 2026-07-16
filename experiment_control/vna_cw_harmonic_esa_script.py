@@ -21,7 +21,7 @@ VNA_RESOURCE_STRING = 'TCPIP0::Localhost::hislip0::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\phase_to_amplitude_modulation\data"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
 
 
 def _reset_vna(vna) -> None:
@@ -304,9 +304,10 @@ def vna_cw_heterodyne_sweep(
 
 
 def main():
-    center_freq =  1*1.145e9
+    center_freq = 2*1.130e9
     span = 100e6
-    cw_freqs = np.linspace(center_freq - span/2, center_freq + span/2, 50)
+    cw_freqs = np.linspace(center_freq - span/2, center_freq + span/2, 300)
+    # cw_freqs = np.linspace(0.5e9, 5e9, 2500)
 
     # vna_cw_harmonic_sweep(
     #     cw_freqs=cw_freqs,
@@ -322,11 +323,11 @@ def main():
 
     vna_cw_heterodyne_sweep(
         cw_freqs=cw_freqs,
-        cw_power=10,
+        cw_power=5,
         heterodyne_shift=125e6,
-        harmonics=(0, 1),
+        harmonics=(0, 1,),
         window_hz=2e6,
-        esa_freq_step=0.25e6,
+        esa_freq_step=2e6/1001,
         esa_res_bw=10e3,
         esa_ref_level=-40,
         settle_time_s=0.01,
