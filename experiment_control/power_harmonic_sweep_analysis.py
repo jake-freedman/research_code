@@ -12,10 +12,10 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w7_d2-1_wg10b_p5\f1_power_sweeppower_harmonic_sweep_2026-07-08-15-11-57.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\f1_power_sweeppower_harmonic_sweep_2026-06-16-14-17-45.npz"
 
 # X-axis for all plots: 'voltage' (V_rms) or 'dbm' (drive power in dBm).
-X_AXIS = 'V_rms'
+X_AXIS = 'dbm'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)
@@ -23,7 +23,7 @@ X_AXIS = 'V_rms'
 #   'percent'  → y-axis in %    (fraction of carrier power, linear scale)
 # Requires the file to have been recorded with per_step_calibration=True;
 # falls back to False automatically if cal_spectra is absent.
-NORMALIZE = 'percent'
+NORMALIZE = False
 
 # Show the calibration (carrier-beat) power vs drive level?
 # Only available when per_step_calibration=True was used.
@@ -69,7 +69,6 @@ def main():
     print(f"  CW frequency     : {data.cw_freq / 1e9:.4f} GHz")
     print(f"  Drive powers     : {data.cw_powers[0]:+.1f} to "
           f"{data.cw_powers[-1]:+.1f} dBm ({len(data.cw_powers)} steps)")
-    print(f"  Repeats          : {data.n_repeats}")
     print(f"  Harmonics        : {list(data.harmonics)}")
     print(f"  Heterodyne shift : {data.heterodyne_shift / 1e6:.1f} MHz")
     print(f"  Window           : ±{data.window_hz / 1e6:.1f} MHz per harmonic")

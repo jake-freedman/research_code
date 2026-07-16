@@ -254,7 +254,7 @@ def main():
     # 25 max for f1, 20 max for f2
 
     bnc_power_heterodyne_sweep(
-        cw_freq=(1/3) * 1.101e9,
+        cw_freq=1.101e9,
         comb_spacing= 1.101e9,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,

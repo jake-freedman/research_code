@@ -52,16 +52,16 @@ gamma1 = 0.05
 eta1   = 1.0
 
 # Mode 2 (driven at 2*Omega via nonlinearity)
-omega2 = 2.0
+omega2 = 2.03
 gamma2 = 0.05
 eta2   = 1.0
 
 # Shared mechanical parameters
 m      = 1.0
 beta   = 0.001     # quadratic nonlinearity strength
-Omega  = 1.0      # drive frequency (rad/s)
+Omega  = 1.02      # drive frequency (rad/s)
 
-factor = 10
+factor = 1
 # Acousto-optic coupling (rad of optical phase per unit displacement)
 dphi_dx1 = 0.5 / factor
 dphi_dx2 = -1.0 / factor
@@ -69,7 +69,7 @@ dphi_dx2 = -1.0 / factor
 # Force sweep
 F_min   = 0.01
 F_max   = 0.4 * factor
-n_force = 50
+n_force = 30
 F_scale = 'linear'   # 'log' or 'linear'
 
 # Optical sidebands to track (order n -> sideband at wL + n*Omega)
@@ -106,10 +106,10 @@ SAVE_PNG = Path(__file__).parent / 'two_mode_ao_sidebands.png'
 SAVE_PNG2 = Path(__file__).parent / 'two_mode_ao_mod_depths.png'
 
 # Numerical curve style
-NUM_LINESTYLE = '--'
+NUM_LINESTYLE = '-'
 NUM_LINEWIDTH = 2.0
 NUM_ALPHA     = 1.0
-NUM_COLOR     = '#000000'   # None = match combline color; e.g. 'black' = use that for all curves
+NUM_COLOR     = None # '#000000'   # None = match combline color; e.g. 'black' = use that for all curves
 NUM_ZORDER    = 4
 
 # Analytical solution overlay
@@ -118,7 +118,7 @@ NUM_ZORDER    = 4
 ANALYTIC_SHOW      = True
 ANALYTIC_K_MAX     = 30          # Bessel series truncation order
 ANALYTIC_LINESTYLE = '-'
-ANALYTIC_LINEWIDTH = 5.00
+ANALYTIC_LINEWIDTH = 0.00
 ANALYTIC_ALPHA     = 1
 ANALYTIC_COLOR     = None       # None = match combline color; e.g. 'black' = use that for all curves
 ANALYTIC_ZORDER    = 3

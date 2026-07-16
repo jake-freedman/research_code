@@ -10,6 +10,7 @@ The file format is auto-detected from the column count:
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
 from vna_control import S11Data, S11S21Data
 from path_utils import local_path
 from graphics import (
@@ -27,21 +28,24 @@ from graphics import (
 # ── data ──────────────────────────────────────────────────────────────────────
 # One or more CSV files.  Each is plotted on the same axes, offset vertically
 # by i * Y_SHIFT dB (file 0 is unshifted).
-DATA_FILES = [
-    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg9a_p1_2026-06-15-19-13-00.csv",
-    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg14a_p1_2026-06-15-19-10-09.csv",
-    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv",
-    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg11a_p1_2026-06-15-19-11-55.csv",
-    r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg6a_p1_2026-06-15-18-50-41.csv"
+# DATA_FILES = [
+#     r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg9a_p1_2026-06-15-19-13-00.csv",
+#     r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg14a_p1_2026-06-15-19-10-09.csv",
+#     r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv",
+#     r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg11a_p1_2026-06-15-19-11-55.csv",
+#     r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg6a_p1_2026-06-15-18-50-41.csv"
 
+# ]
+DATA_FILES = [
+    r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv"
 ]
 Y_SHIFT = 6.5   # dB offset applied between consecutive files
 # Per-file colors; None = auto-cycle through [BEIGE2, VIOLET2, TAN2, ...]
 COLORS = None
 
 # ── plot limits ───────────────────────────────────────────────────────────────
-YMIN = -8.0   # dB, None = auto
-YMAX =  28   # dB, None = auto
+YMIN = None # -8.0   # dB, None = auto
+YMAX =  None # 28   # dB, None = auto
 XMIN =  0.0   # GHz, None = auto
 XMAX =  3.5   # GHz, None = auto
 
@@ -49,6 +53,15 @@ XMAX =  3.5   # GHz, None = auto
 # Print the frequency of the S11 minimum within this window (GHz). None = full range.
 FREQ_MIN = None
 FREQ_MAX = None
+
+# ── dip marking ───────────────────────────────────────────────────────────────
+# Circle every local S11 dip (within FREQ_MIN/FREQ_MAX) and label its
+# (frequency, dB) coordinate on the plot.
+SHOW_DIP_MARKERS = False
+DIP_PROMINENCE   = 1.0   # dB, minimum prominence for a dip to be marked
+DIP_MARKER_COLOR = None  # None = match the trace color
+DIP_MARKER_SIZE  = 50    # circle marker size (points^2)
+DIP_LABEL_FONTSIZE = 7
 
 # ── graphics ──────────────────────────────────────────────────────────────────
 axes_width_mm  = 90
@@ -116,6 +129,20 @@ def main():
 
         ax.plot(freqs / 1e9, s11_db, color=color, linewidth=linewidth)
 
+        # ── dip markers ───────────────────────────────────────────────────────
+        if SHOW_DIP_MARKERS:
+            dip_idx, _ = find_peaks(-s11_db[mask], prominence=DIP_PROMINENCE)
+            dip_idx = np.flatnonzero(mask)[dip_idx]
+            marker_color = DIP_MARKER_COLOR if DIP_MARKER_COLOR is not None else color
+            for idx in dip_idx:
+                fx, fy = freqs[idx] / 1e9, s11_db[idx]
+                ax.scatter([fx], [fy], s=DIP_MARKER_SIZE, facecolors='none',
+                           edgecolors=marker_color, linewidths=1.5, zorder=5)
+                ax.annotate(f'({fx:.4f} GHz, {fy:.2f} dB)',
+                            xy=(fx, fy), xytext=(0, 6), textcoords='offset points',
+                            fontsize=DIP_LABEL_FONTSIZE, color=marker_color,
+                            ha='center', va='bottom')
+
     if XMIN is not None or XMAX is not None:
         ax.set_xlim(
             left  = XMIN if XMIN is not None else last_freqs[0]  / 1e9,
@@ -144,7 +171,7 @@ def main():
         ax.set_ylabel('')
         ax.tick_params(labelbottom=False, labelleft=False)
 
-        svg_path = SAVE_PATH
+        svg_path = local_path(SAVE_PATH) if SAVE_PATH is not None else None
         if svg_path is None:
             base = os.path.splitext(os.path.abspath(local_path(DATA_FILES[0])))[0]
             svg_path = base + '.svg'

@@ -4,7 +4,7 @@ from matplotlib.ticker import MultipleLocator
 from pathlib import Path
 
 # ── configuration ─────────────────────────────────────────────────────────────
-S2P_PATH = Path(r"C:\Users\acous\code\research_code\multi_tone_ao_modulation\S11_Data_Sweep\die2-3_wg5_RU_ultranarrowperiodic_bi_500um_2024-08-20-10-00.s2p")
+S2P_PATH = Path(r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\s11_w2_d21_wg5a_p5_2026-06-15-19-27-36.csv")
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── graphics style ────────────────────────────────────────────────────────────
