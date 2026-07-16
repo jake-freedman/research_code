@@ -5,12 +5,12 @@ import matplotlib.ticker as ticker
 from pathlib import Path
 
 # ── configuration ─────────────────────────────────────────────────────────────
-BETA1 = 1.9
-BETA2 = 0.88
+BETA1 = 2.46
+BETA2 = 1.10
 
 # Harmonic orders to plot. Each p gives the beat component at p*f,
 # where ch1 drives at f (β1, φ1) and ch2 drives at 2f (β2, φ2).
-ORDERS = [-3, -2, -1, 0, 1, 2, 3]
+ORDERS = [-2, -1, 0, 1, 2]
 
 N_GRID  = 400   # grid points along each axis
 K_TRUNC = int(2 * max(BETA1, BETA2)) + 20

@@ -12,7 +12,7 @@ from path_utils import local_path
 # ------------------------------------------------------------------
 
 # DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-34-54.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_360_point_sweep.npz"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -23,7 +23,7 @@ DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\
 #   'ch2_phase'    — channel 2 phase offset (deg)
 #   'stability'    — step index (use when all parameters are held constant to
 #                    check measurement repeatability over time)
-X_AXIS = 'ch2_voltage'
+X_AXIS = 'ch2_phase'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)
