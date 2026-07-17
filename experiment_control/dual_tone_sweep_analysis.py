@@ -11,8 +11,8 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-# DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-17-11-09-05.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
+# DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-17-11-09-05.npz"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -98,8 +98,8 @@ CALIBRATION_DICT = None # {-2: 1.12, -1: 1.33, 0: 1.08, 1: 1.168, 2: 1.136}
 
 # ── publication export ────────────────────────────────────────────────────────
 # When True: removes axis/tick labels, legend, and title; saves SVGs.
-FOR_PUBLICATION = False
-SAVE_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media"
+FOR_PUBLICATION = True
+SAVE_FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\media"
 
 # Marker style for publication plot. Scatter is drawn first; curves on top.
 # PUB_MARKER_EDGE_COLOR / PUB_CURVE_COLOR: 'same' = match combline color.
@@ -113,12 +113,21 @@ PUB_CURVE_SHOW          = True      # draw a curve relative to scatter markers
 PUB_CURVE_BEHIND        = False      # True = curve behind points; False = curve on top
 PUB_CURVE_COLOR         = 'black'   # 'same' = keep combline color
 PUB_CURVE_WIDTH         = 2.0       # linewidth in points
-# 'raw'      → plot the data line directly
-# 'sinusoid' → fit A·cos(ω·x + φ) + C to each combline and plot the smooth fit
-PUB_CURVE_MODE          = 'sinusoid'
-# Per-combline period count for the sinusoid frequency initial guess.
+# 'raw'             → plot the data line directly
+# 'sinusoid'        → fit A·cos(ω·x + φ) + C to each combline (independent
+#                      amplitude/phase per frequency component) and plot the fit
+# 'phase_harmonics' → fit C + 2*sum_{m=1}^{N} A_m·cos(m·phi + m·phi0) to each
+#                      combline: a single shared phase offset phi0, with a free
+#                      amplitude A_m per harmonic m=1..N of the swept phase.
+#                      Assumes X_AXIS is a phase in degrees (ch1_phase or
+#                      ch2_phase); phi = deg2rad(x). N (PUB_PHASE_HARMONIC_N)
+#                      is the same for every sideband.
+PUB_CURVE_MODE          = 'phase_harmonics'
+# Per-combline period count for the sinusoid frequency initial guess (PUB_CURVE_MODE = 'sinusoid').
 # Keys are harmonic orders (int); missing orders default to 1.
-PUB_SINUSOID_N_PERIODS  = {0:(1,2), -2: (1,2), 2: (1,2), -1: (1,2), 1: (1,2)}
+PUB_SINUSOID_N_PERIODS  = {0:(1,2,3), -2: (1,2,3), 2: (1,2,3), -1: (1,2,3), 1: (1,2,3)}
+# Number of phase harmonics N to fit (PUB_CURVE_MODE = 'phase_harmonics'), same for every sideband.
+PUB_PHASE_HARMONIC_N    = 3
 
 
 def main():
@@ -202,6 +211,22 @@ def main():
             return total
         return _model
 
+    def _make_phase_harmonic_model(n_harm):
+        """
+        f(phi_deg) = C + 2 * sum_{m=1}^{n_harm} A_m * cos(m*phi_rad + m*phi0),
+        phi_rad = deg2rad(phi_deg). A single phi0 is shared across all m.
+        params: A_1, ..., A_n_harm, phi0, C  (n_harm + 2 values).
+        """
+        def _model(x_deg, *params):
+            phi_rad = np.deg2rad(x_deg)
+            phi0 = params[n_harm]
+            C = params[n_harm + 1]
+            total = np.full_like(phi_rad, C, dtype=float)
+            for m in range(1, n_harm + 1):
+                total = total + 2.0 * params[m - 1] * np.cos(m * phi_rad + m * phi0)
+            return total
+        return _model
+
     def _apply_pub_style(fig, ax, svg_name, marker_pt=PUB_MARKER_PT):
         ax.set_xlabel('')
         ax.set_ylabel('')
@@ -235,6 +260,8 @@ def main():
             elif PUB_CURVE_MODE == 'sinusoid':
                 for ln, _, _, _, _ in _lines:
                     ln.set_visible(False)
+                _fit_unit = '%' if NORMALIZE == 'percent' else ('dBc' if NORMALIZE else 'dBm')
+                print("\n  Sinusoid fit parameters (A*cos(omega*x + phi) + C):")
                 for _, xd_all, yd_all, fc, order in _lines:
                     x_span = xd_all[-1] - xd_all[0]
                     if x_span == 0 or len(xd_all) < 4:
@@ -253,8 +280,53 @@ def main():
                         x_fit = np.linspace(xd_all.min(), xd_all.max(), 500)
                         ax.plot(x_fit, model(x_fit, *popt),
                                 color=cc_fn(fc), linewidth=PUB_CURVE_WIDTH, zorder=curve_z)
+
+                        label = f"n={order}" if order is not None else "unknown harmonic"
+                        print(f"    {label}:")
+                        for k, n_period in enumerate(periods):
+                            A_k, phi_k = popt[2 * k], popt[2 * k + 1]
+                            if A_k < 0:
+                                A_k, phi_k = -A_k, phi_k + np.pi
+                            phi_k = (phi_k + np.pi) % (2 * np.pi) - np.pi
+                            print(f"      component {k} (n={n_period} period(s)/sweep): "
+                                  f"A={A_k:.4f} {_fit_unit},  phi={np.degrees(phi_k):+7.2f} deg")
+                        print(f"      offset C = {popt[-1]:.4f} {_fit_unit}")
                     except RuntimeError:
                         print(f"  Warning: sinusoid fit failed for harmonic {order}; skipping.")
+            elif PUB_CURVE_MODE == 'phase_harmonics':
+                for ln, _, _, _, _ in _lines:
+                    ln.set_visible(False)
+                if X_AXIS not in ('ch1_phase', 'ch2_phase'):
+                    print(f"  Warning: PUB_CURVE_MODE='phase_harmonics' assumes a phase "
+                          f"X_AXIS in degrees; current X_AXIS={X_AXIS!r}.")
+                _fit_unit = '%' if NORMALIZE == 'percent' else ('dBc' if NORMALIZE else 'dBm')
+                n_harm = PUB_PHASE_HARMONIC_N
+                model = _make_phase_harmonic_model(n_harm)
+                print(f"\n  Phase-harmonic fit parameters "
+                      f"(C + 2*sum_m=1^{n_harm} A_m*cos(m*phi + m*phi0)):")
+                for _, xd_all, yd_all, fc, order in _lines:
+                    if len(xd_all) < n_harm + 2:
+                        print(f"  Warning: not enough points to fit N={n_harm} harmonics "
+                              f"for harmonic {order}; skipping.")
+                        continue
+                    C0 = float(np.mean(yd_all))
+                    A0 = (yd_all.max() - yd_all.min()) / max(4 * n_harm, 1)
+                    p0 = [A0] * n_harm + [0.0, C0]
+                    try:
+                        popt, _ = _curve_fit(model, xd_all, yd_all, p0=p0, maxfev=20000)
+                        x_fit = np.linspace(xd_all.min(), xd_all.max(), 500)
+                        ax.plot(x_fit, model(x_fit, *popt),
+                                color=cc_fn(fc), linewidth=PUB_CURVE_WIDTH, zorder=curve_z)
+
+                        label = f"n={order}" if order is not None else "unknown harmonic"
+                        phi0_deg = (np.degrees(popt[n_harm]) + 180.0) % 360.0 - 180.0
+                        print(f"    {label}:")
+                        print(f"      phi0 = {phi0_deg:+7.2f} deg")
+                        for m in range(1, n_harm + 1):
+                            print(f"      A_{m} = {popt[m - 1]:.4f} {_fit_unit}")
+                        print(f"      C = {popt[-1]:.4f} {_fit_unit}")
+                    except RuntimeError:
+                        print(f"  Warning: phase-harmonic fit failed for harmonic {order}; skipping.")
         fig.savefig(_os.path.join(SAVE_FOLDER, svg_name), format='svg', bbox_inches='tight')
         print(f"Saved: {_os.path.join(SAVE_FOLDER, svg_name)}")
 
