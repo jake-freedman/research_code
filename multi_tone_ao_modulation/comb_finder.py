@@ -50,17 +50,21 @@ def _harmonic_color(n: int) -> str:
 # User settings
 # ─────────────────────────────────────────────────────────────────────────────
 
-FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\2d_power_phase_2026-07-16-16-27-06"
+FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\2d_power_phase_2026-07-17-12-11-47"
 
 # Optimisation criterion.
-CRITERION = 'flatness'
+CRITERION = 'dark_window'
 
 # Which harmonic order to optimise (for 'max_harmonic').
-TARGET_HARMONIC = 1
+TARGET_HARMONIC = -1
 
 # Inclusive range of harmonic orders to evaluate for the 'flatness' criterion.
-FLATNESS_ORDER_MIN = -3
-FLATNESS_ORDER_MAX =  3
+FLATNESS_ORDER_MIN = -2
+FLATNESS_ORDER_MAX =  2
+
+# Orders to suppress for the 'dark_window' criterion. The metric minimised is
+# the maximum CE across all listed orders (minimax suppression).
+DARK_WINDOW_ORDERS = [0, 1, 2]
 
 # Metric normalisation:
 #   False      → raw peak power [dBm]
@@ -106,15 +110,22 @@ def _metric_label(normalize, target_harmonic):
 
 def load_grid(folder: str):
     """
-    Load a 2D power-phase grid folder produced by bnc_2d_power_phase_script.py.
+    Load a 2D power-phase grid folder produced by bnc_2d_power_phase_script.py,
+    or a single .npz file produced by bnc_dual_tone_esa_script.py.
+
+    When given a single file, it is wrapped into a 1×1 grid where the M sweep
+    steps are treated as the phase axis (appropriate for phase sweeps).
 
     Returns
     -------
     meta : dict
-        Contents of grid_meta.npz (ch1_powers_dbm, ch2_powers_dbm, harmonics, …).
+        ch1_powers_dbm, ch2_powers_dbm, harmonics, ch2_phases_deg, …
     grid_data : dict of (i, j) -> dict
         Per-point data arrays keyed by npz field name.
     """
+    if os.path.isfile(folder):
+        return _load_single_npz(folder)
+
     meta_path = os.path.join(folder, 'grid_meta.npz')
     if not os.path.exists(meta_path):
         raise FileNotFoundError(f"grid_meta.npz not found in {folder}")
@@ -130,6 +141,35 @@ def load_grid(folder: str):
     if not grid_data:
         raise FileNotFoundError(f"No grid_*.npz files found in {folder}")
     return meta, grid_data
+
+
+def _load_single_npz(path: str):
+    """
+    Wrap a single dual-tone sweep .npz into the (meta, grid_data) format
+    expected by the criterion functions. The M sweep steps are treated as
+    the phase axis at a single (ch1_power, ch2_power) grid point.
+    """
+    d = dict(np.load(path, allow_pickle=True))
+    harmonics      = d['harmonics'].astype(int)
+    ch2_phases_deg = d['ch2_phases_deg']           # (M,)
+    spectra        = d['spectra']                  # (M, N, K)
+    cal_spectra    = d.get('cal_spectra', None)    # (M, K) or None
+    ch1_pwr        = float(d['ch1_powers_dbm'][0])
+    ch2_pwr        = float(d['ch2_powers_dbm'][0])
+
+    meta = {
+        'ch1_powers_dbm': np.array([ch1_pwr]),
+        'ch2_powers_dbm': np.array([ch2_pwr]),
+        'harmonics':      harmonics,
+        'ch2_phases_deg': ch2_phases_deg,
+    }
+    point = {
+        'spectra':        spectra,
+        'cal_spectra':    cal_spectra,
+        'ch2_phases_deg': ch2_phases_deg,
+        'harmonics':      harmonics,
+    }
+    return meta, {(0, 0): point}
 
 
 def _harmonic_idx(harmonics, target: int) -> int:
@@ -438,6 +478,178 @@ def find_flattest_comb(meta, grid_data, order_min: int, order_max: int, normaliz
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Criterion: dark_window
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _dark_window_metric(spectra, cal_spectra, harmonic_indices, normalize):
+    """
+    Per-phase maximum CE across the specified harmonic indices.
+    Lower max = deeper dark window (all listed sidebands more suppressed).
+
+    spectra          : (P, N, K)
+    cal_spectra      : (P, K) or None
+    harmonic_indices : list of int, column indices into axis 1
+
+    Returns (P,) array of max values.
+    """
+    peak_dbm = spectra[:, harmonic_indices, :].max(axis=-1)   # (P, len(indices))
+
+    if normalize in (True, 'percent'):
+        if cal_spectra is None:
+            raise RuntimeError(
+                "normalize requires cal_spectra, which is absent from this grid point."
+            )
+        cal_dbm = cal_spectra.max(axis=-1)[:, np.newaxis]     # (P, 1)
+        dbc = peak_dbm - cal_dbm
+        ce = 10.0 ** (dbc / 10.0) * 100.0 if normalize == 'percent' else dbc
+    else:
+        ce = peak_dbm
+
+    return ce.max(axis=-1)   # (P,) — worst sideband at each phase
+
+
+def find_dark_window(meta, grid_data, dark_orders, normalize):
+    """
+    Find the (ch1 power, ch2 power, ch2 phase) triple that minimises the
+    maximum CE across the specified harmonic orders (minimax suppression).
+
+    Returns the same dict structure as find_max_harmonic, with best_metric
+    being the minimum of the per-phase maximum CE across dark_orders.
+    Also includes:
+        dark_orders  – list of harmonic orders actually matched in the data
+    """
+    ch1_powers = meta['ch1_powers_dbm']
+    ch2_powers = meta['ch2_powers_dbm']
+    n1, n2 = len(ch1_powers), len(ch2_powers)
+
+    metric_grid     = np.full((n1, n2), np.nan)
+    best_phase_grid = np.full((n1, n2), np.nan)
+
+    best_val = np.inf
+    best_i = best_j = best_phase_idx = None
+    best_phase_curve = None
+    best_phases_arr  = None
+    best_d           = None
+    actual_orders    = None
+
+    target_set = set(int(o) for o in dark_orders)
+
+    for (i, j), d in grid_data.items():
+        harmonics = d['harmonics'].astype(int)
+        in_window = [k for k, n in enumerate(harmonics) if int(n) in target_set]
+        if not in_window:
+            print(f"  Grid ({i},{j}): none of orders {dark_orders} found; skipping.")
+            continue
+
+        if actual_orders is None:
+            actual_orders = [int(harmonics[k]) for k in in_window]
+
+        spectra     = d['spectra']
+        cal_spectra = d.get('cal_spectra', None)
+        phases      = d['ch2_phases_deg']
+
+        metric = _dark_window_metric(spectra, cal_spectra, in_window, normalize)
+        best_p = int(np.argmin(metric))
+
+        metric_grid[i, j]     = float(metric[best_p])
+        best_phase_grid[i, j] = float(phases[best_p])
+
+        if metric[best_p] < best_val:
+            best_val         = float(metric[best_p])
+            best_i           = i
+            best_j           = j
+            best_phase_idx   = best_p
+            best_phase_curve = metric
+            best_phases_arr  = phases
+            best_d           = d
+
+    if best_i is None:
+        raise RuntimeError("No valid grid points found.")
+
+    best_spectra   = best_d['spectra'][best_phase_idx]
+    best_cal       = best_d.get('cal_spectra', None)
+    best_peaks_dbm = best_spectra.max(axis=-1)
+    if normalize in (True, 'percent') and best_cal is not None:
+        cal_peak = float(best_cal[best_phase_idx].max())
+        dbc = best_peaks_dbm - cal_peak
+        best_comb_ce = 10.0 ** (dbc / 10.0) * 100.0 if normalize == 'percent' else dbc
+    else:
+        best_comb_ce = best_peaks_dbm
+
+    return {
+        'best_i':          best_i,
+        'best_j':          best_j,
+        'best_phase_idx':  best_phase_idx,
+        'best_phase_deg':  float(best_phases_arr[best_phase_idx]),
+        'best_metric':     best_val,
+        'best_ch1_power':  float(ch1_powers[best_i]),
+        'best_ch2_power':  float(ch2_powers[best_j]),
+        'metric_grid':     metric_grid,
+        'best_phase_grid': best_phase_grid,
+        'phase_curve':     best_phase_curve,
+        'ch2_phases_deg':  best_phases_arr,
+        'best_comb_ce':    best_comb_ce,
+        'best_harmonics':  best_d['harmonics'].astype(int),
+        'dark_orders':     actual_orders,
+    }
+
+
+def plot_dark_window(result: dict, meta: dict, normalize):
+    """
+    Figure 1 — heatmap of the best achievable max-CE per grid point (min over
+               phase). Lower = deeper window. Best point marked with a red cross.
+    Figure 2 — max-CE vs ch2 phase at the best grid point (minimum marked).
+    """
+    ch1_powers = meta['ch1_powers_dbm']
+    ch2_powers = meta['ch2_powers_dbm']
+    unit = '% of carrier' if normalize == 'percent' else ('dBc' if normalize else 'dBm')
+    orders = result.get('dark_orders', [])
+
+    mm = 1.0 / 25.4
+    fig1, ax1 = plt.subplots(figsize=(90 * mm, 75 * mm))
+    fig1.subplots_adjust(left=0.18, right=0.88, bottom=0.15, top=0.93)
+
+    n1, n2 = len(ch1_powers), len(ch2_powers)
+    if n1 > 1 and n2 > 1:
+        dx = (ch1_powers[-1] - ch1_powers[0]) / (n1 - 1) / 2
+        dy = (ch2_powers[-1] - ch2_powers[0]) / (n2 - 1) / 2
+        extent = [ch1_powers[0] - dx, ch1_powers[-1] + dx,
+                  ch2_powers[0] - dy, ch2_powers[-1] + dy]
+    else:
+        extent = [ch1_powers[0], ch1_powers[-1],
+                  ch2_powers[0], ch2_powers[-1]]
+
+    im = ax1.imshow(
+        result['metric_grid'].T,
+        origin='lower', aspect='auto', extent=extent, cmap='viridis_r',
+    )
+    ax1.scatter(
+        [result['best_ch1_power']], [result['best_ch2_power']],
+        color='red', marker='x', s=80, linewidths=1.5, zorder=5,
+    )
+    cb = plt.colorbar(im, ax=ax1)
+    cb.set_label(f'Max CE in window [{unit}]  (lower = darker)', fontsize=tick_label_fontsize)
+    cb.ax.tick_params(labelsize=tick_label_fontsize)
+    ax1.set_xlabel('Ch1 power [dBm]', fontsize=axis_label_fontsize)
+    ax1.set_ylabel('Ch2 power [dBm]', fontsize=axis_label_fontsize)
+    _style_ax(ax1)
+
+    fig2, ax2 = _make_figure()
+    phases = result['ch2_phases_deg']
+    curve  = result['phase_curve']
+    ax2.plot(phases, curve, color=BLUE2, linewidth=1.5, marker='o', markersize=3)
+    ax2.scatter(
+        [phases[result['best_phase_idx']]], [result['best_metric']],
+        color=RED2, zorder=5, s=40,
+    )
+    ax2.set_xlabel('Ch2 phase [deg]', fontsize=axis_label_fontsize)
+    ax2.set_ylabel(f'Max CE in window [{unit}]  (orders {orders})', fontsize=axis_label_fontsize)
+    _style_ax(ax2)
+
+    return fig1, fig2
+
+
 def plot_flattest_comb(result: dict, meta: dict, normalize):
     """
     Figure 1 — heatmap of best achievable std per grid point (min over phase).
@@ -532,9 +744,9 @@ def main():
     ch1 = meta['ch1_powers_dbm']
     ch2 = meta['ch2_powers_dbm']
     print(f"Loaded: {FOLDER}")
-    print(f"  Grid size  : {len(ch1)} × {len(ch2)}  ({len(grid_data)} point files)")
-    print(f"  Ch1 powers : {ch1[0]:+.1f} – {ch1[-1]:+.1f} dBm")
-    print(f"  Ch2 powers : {ch2[0]:+.1f} – {ch2[-1]:+.1f} dBm")
+    print(f"  Grid size  : {len(ch1)} × {len(ch2)}  ({len(grid_data)} point(s))")
+    print(f"  Ch1 powers : {ch1[0]:+.1f}" + (f" – {ch1[-1]:+.1f}" if len(ch1) > 1 else "") + " dBm")
+    print(f"  Ch2 powers : {ch2[0]:+.1f}" + (f" – {ch2[-1]:+.1f}" if len(ch2) > 1 else "") + " dBm")
     print(f"  Harmonics  : {list(meta['harmonics'])}")
     print(f"  Criterion  : {CRITERION},  normalize={NORMALIZE!r}\n")
 
@@ -563,6 +775,18 @@ def main():
         print(f"  CE std    : {result['best_metric']:.3f} {unit}")
 
         plot_flattest_comb(result, meta, NORMALIZE)
+        plot_comb_bars(result, NORMALIZE)
+
+    elif CRITERION == 'dark_window':
+        result = find_dark_window(meta, grid_data, DARK_WINDOW_ORDERS, NORMALIZE)
+
+        print(f"Darkest window for orders {result['dark_orders']}:")
+        print(f"  Ch1 power : {result['best_ch1_power']:+.2f} dBm  (grid i={result['best_i']})")
+        print(f"  Ch2 power : {result['best_ch2_power']:+.2f} dBm  (grid j={result['best_j']})")
+        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg")
+        print(f"  Max CE    : {result['best_metric']:.3f} {unit}")
+
+        plot_dark_window(result, meta, NORMALIZE)
         plot_comb_bars(result, NORMALIZE)
 
     else:

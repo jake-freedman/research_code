@@ -12,7 +12,7 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\f1_third_power_sweeppower_harmonic_sweep_2026-07-16-11-00-58.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\f1_third_power_sweeppower_harmonic_sweep_2026-07-17-12-03-47.npz"
 
 # X-axis for all plots: 'voltage' (V_rms) or 'dbm' (drive power in dBm).
 X_AXIS = 'dbm'
@@ -31,7 +31,7 @@ SHOW_CALIBRATION = True
 
 # Harmonic pair for β extraction: J_num(β) / J_den(β).
 HARMONIC_NUMERATOR = 1
-HARMONIC_DENOMINATOR = 0
+HARMONIC_DENOMINATOR = 2
 
 # Initial guess for β (rad).
 BETA_GUESS = 2.0

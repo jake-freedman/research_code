@@ -35,9 +35,6 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
-
-
 def _sweep_avg(esa, n_avg: int, return_all: bool = False):
     """
     Take n_avg ESA sweeps and return their linear-averaged power in dBm.
@@ -67,6 +64,7 @@ def bnc_dual_tone_sweep(
     ch2_powers_dbm,
     ch1_phases_deg,
     ch2_phases_deg,
+    data_folder: str = '.',
     harmonics=(1, 2, 3),
     heterodyne_shift: float = 125e6,
     window_hz: float = 2e6,
@@ -180,12 +178,12 @@ def bnc_dual_tone_sweep(
         f"  averages   : {averages_per_point} per point"
     )
 
-    os.makedirs(DATA_FOLDER, exist_ok=True)
+    os.makedirs(data_folder, exist_ok=True)
     fname = (
         f'{optional_name}dual_tone_sweep_'
         f'{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.npz'
     )
-    full_path = os.path.join(DATA_FOLDER, fname)
+    full_path = os.path.join(data_folder, fname)
 
     offsets_hz = None
     repeats_spectra = []   # completed repeats: list of R lists, each (M, N) of arrays
@@ -506,21 +504,23 @@ def bnc_dual_tone_sweep(
     print(f"Done. Saved {R} repeat(s) × {M_saved}/{M} steps to {full_path}")
     if plot:
         data = DualToneSweepData.from_file(full_path)
-        data.plot_peak_powers()
+        data.plot_peak_powers(x_axis='ch2_phase')
         plt.show()
     return full_path
 
 
 def main():
 
-    M = 360
+    DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
+
+    M = 180
     f0 = 1.130e9
 
     # Example: sweep channel 2 phase 0–360°, all other params fixed
     drive_freqs    = np.ones(M) * f0
-    ch1_powers_dbm = np.ones(M) * (23.8) # max 25
+    ch1_powers_dbm = np.ones(M) * (22.70) # max 25
     # ch1_powers_dbm = np.linspace(0, 23.5, M)
-    ch2_powers_dbm = np.ones(M) * 11 # max 20
+    ch2_powers_dbm = np.ones(M) * 11.16 # max 20
     # ch2_powers_dbm = np.linspace(-10, 15, M)
     ch1_phases_deg = np.ones(M) * 0.0
     # ch2_phases_deg = np.ones(M) * 100
@@ -532,7 +532,8 @@ def main():
         ch2_powers_dbm=ch2_powers_dbm,
         ch1_phases_deg=ch1_phases_deg,
         ch2_phases_deg=ch2_phases_deg,
-        harmonics=(-2, -1,0,1, 2),
+        data_folder=DATA_FOLDER,
+        harmonics=(-4, -3, -2, -1, 0, 1, 2, 3, 4),
         heterodyne_shift=125e6,
         window_hz=1e6,
         esa_freq_step=2e6/1001,

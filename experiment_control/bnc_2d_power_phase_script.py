@@ -285,11 +285,11 @@ def main():
     P = 18
     bnc_2d_power_phase_sweep(
         cw_freq=1.130e9,
-        ch1_power_min_dbm=18,
-        ch1_power_max_dbm=21.5,
+        ch1_power_min_dbm=24,
+        ch1_power_max_dbm=25.5,
         ch1_n_points=5,
-        ch2_power_min_dbm=13,
-        ch2_power_max_dbm=17,
+        ch2_power_min_dbm=19,
+        ch2_power_max_dbm=21,
         ch2_n_points=5,
         ch2_phases_deg=np.linspace(0, 360, P, endpoint=True),
         harmonics=(-3,-2,-1,0,1,2,3),
