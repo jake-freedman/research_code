@@ -37,7 +37,9 @@ SIDEBAND_CMAP = mcolors.LinearSegmentedColormap.from_list(
     'sideband_pm1', [CMAP_COLOR_LOW, CMAP_COLOR_HIGH]
 )
 
-FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-07-16-14-09-06"
+SIDEBAND_CMAP = 'viridis'
+
+FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\2d_power_phase_2026-07-20-14-07-43"
 # FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-06-23-14-30-45"
 
 # Harmonic order to plot (must be in the harmonics list recorded by the script)
@@ -97,13 +99,32 @@ SAVE_FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\media"
 # Contour lines drawn on top of the filled map when FOR_PUBLICATION = True.
 # Set PUB_CONTOUR_COLOR = None to skip contour lines entirely.
 PUB_CONTOUR_COLOR     = '#000000'   # any matplotlib color, or None to skip
-PUB_CONTOUR_WIDTH     = 0       # linewidth in points
+PUB_CONTOUR_WIDTH     = 1       # linewidth in points
+
+# ── theory contour lines ────────────────────────────────────────────
+# Draw contour lines at these values (in the current NORMALIZE units, e.g.
+# percent/dBc/dBm) on top of the theory heatmap. None = skip. Only applies
+# to the 2D contourf plots (PLOT_3D_SURFACE = False); ignored otherwise.
+CONTOUR_LEVELS = [20, 30, 40, 50]
+
+# Also draw those same theory contour lines on top of the measurement
+# heatmap (requires SHOW_THEORETICAL = True), for a direct visual comparison
+# of theory against data.
+SHOW_CONTOURS_ON_MEASUREMENT = True
+
+CONTOUR_COLOR      = 'black'   # any matplotlib color spec
+CONTOUR_LINESTYLE  = '--'      # e.g. '-', '--', '-.', ':'
+CONTOUR_LINEWIDTH  = 1.0       # linewidth in points
+
+# Inline-label each contour line with its level value.
+CONTOUR_LABELS          = False
+CONTOUR_LABEL_FONTSIZE  = 6
 
 # ── theoretical figure ────────────────────────────────────────────
 SHOW_THEORETICAL = True
 
 # Half-wave voltage [V_rms] for each channel.
-VPI1 = 5   # ch1, drives at f
+VPI1 = 6   # ch1, drives at f
 VPI2 = 2.3   # ch2, drives at 2f
 
 # Grid resolution for the theory map along each axis. None = same resolution
@@ -116,8 +137,8 @@ THEORY_N2 = 100   # ch2 axis
 # range as the measurement grid (v1.min()..v1.max() / v2.min()..v2.max()) --
 # set these to extrapolate beyond, or zoom into a sub-range of, the swept
 # voltages.
-THEORY_V1_RANGE = (0,4.2)   # (vmin, vmax), ch1
-THEORY_V2_RANGE = (0,1.3)   # ch2
+THEORY_V1_RANGE = None # (0,4.2)   # (vmin, vmax), ch1
+THEORY_V2_RANGE = None # (0,1.3)   # ch2
 
 # On the theory surface (3D only), outline the rectangle in (V1, V2) that
 # the actual experimental sweep covered -- useful when THEORY_V1_RANGE/
@@ -130,7 +151,7 @@ EXPERIMENT_BOUNDARY_ZORDER = 10
 EXPERIMENT_BOUNDARY_N_POINTS = 100   # points used to trace each edge
 
 # Phase resolution for the theoretical maximum search (higher = more accurate).
-N_PHASE_THEORY = 36
+N_PHASE_THEORY = 18
 
 # Bessel series truncation for theory. None = auto (derived from max beta).
 K_TRUNC_THEORY = None
@@ -369,6 +390,23 @@ def main():
         print(f"Theory map range: {np.nanmin(peak_map_theory):.2f} – "
               f"{np.nanmax(peak_map_theory):.2f}")
 
+    # Computed once here (rather than where it's first used, further down)
+    # so both the experiment and theory figures can draw the theory contour
+    # lines from the same masked array.
+    theory_masked = (np.ma.masked_invalid(peak_map_theory)
+                      if peak_map_theory is not None else None)
+
+    def _draw_theory_contours(target_ax):
+        """Overlay CONTOUR_LEVELS (evaluated on the theory grid) on target_ax."""
+        cl = target_ax.contour(
+            V1_theory, V2_theory, theory_masked, levels=CONTOUR_LEVELS,
+            colors=CONTOUR_COLOR, linestyles=CONTOUR_LINESTYLE,
+            linewidths=CONTOUR_LINEWIDTH,
+        )
+        if CONTOUR_LABELS:
+            target_ax.clabel(cl, fontsize=CONTOUR_LABEL_FONTSIZE)
+        return cl
+
     # Color scale (and, for 3D, z-axis range) shared between both plots:
     # explicit CMIN/CMAX win; otherwise use the theory map's range so the
     # experiment and theory figures are always normalized/scaled the same way.
@@ -403,6 +441,10 @@ def main():
         for side in ['top', 'bottom', 'left', 'right']:
             ax.spines[side].set_linewidth(spine_linewidth)
 
+        if (CONTOUR_LEVELS is not None and SHOW_CONTOURS_ON_MEASUREMENT
+                and theory_masked is not None):
+            _draw_theory_contours(ax)
+
         if FOR_PUBLICATION:
             if PUB_CONTOUR_COLOR is not None:
                 ax.contour(V1, V2, np.ma.masked_invalid(peak_map),
@@ -418,7 +460,6 @@ def main():
         return
 
     # ── theoretical figure ────────────────────────────────────────────────────
-    theory_masked = np.ma.masked_invalid(peak_map_theory)
     theory_unit = ('% of carrier' if NORMALIZE == 'percent'
                    else ('dBc' if NORMALIZE else '% of carrier'))
     cb2_lbl = f'Max harmonic {HARMONIC} power [{theory_unit}]  (theory)'
@@ -448,6 +489,9 @@ def main():
                         width=tick_width, labelsize=tick_label_fontsize)
         for side in ['top', 'bottom', 'left', 'right']:
             ax2.spines[side].set_linewidth(spine_linewidth)
+
+        if CONTOUR_LEVELS is not None:
+            _draw_theory_contours(ax2)
 
         if FOR_PUBLICATION:
             if PUB_CONTOUR_COLOR is not None:

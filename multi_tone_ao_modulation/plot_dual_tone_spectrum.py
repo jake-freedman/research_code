@@ -16,7 +16,7 @@ _COLORS = [BLUE2, RED2, GREEN2, VIOLET2, ORANGE2, DARKGREEN2,
 BETA1    = 2.46     # ch1 modulation depth (rad), drive at f
 BETA2    = 1.10     # ch2 modulation depth (rad), drive at 2f
 PHI1_DEG = 0.0      # ch1 phase (deg)
-PHI2_DEG = 180.0     # ch2 phase (deg)
+PHI2_DEG = 179.5     # ch2 phase (deg)
 
 # Harmonic orders to plot and print. Both the spectrum and the console table
 # show exactly these orders.
@@ -28,7 +28,7 @@ PRINT_ORDERS = [-3, -2, -1, 0, 1, 2, 3]
 DISPLAY_MODE = 'dB'
 
 # dB mode only: floor of the y-axis in dBc. None = auto.
-FLOOR_DBc = -50.0
+FLOOR_DBc = -80.0
 
 # Bessel series truncation (increase for large β)
 K_TRUNC = int(2 * max(BETA1, BETA2)) + 20

@@ -50,21 +50,21 @@ def _harmonic_color(n: int) -> str:
 # User settings
 # ─────────────────────────────────────────────────────────────────────────────
 
-FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\2d_power_phase_2026-07-17-12-11-47"
+FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\2d_power_phase_2026-07-16-16-38-54"
 
 # Optimisation criterion.
-CRITERION = 'dark_window'
+CRITERION = 'flatness'
 
 # Which harmonic order to optimise (for 'max_harmonic').
 TARGET_HARMONIC = -1
 
 # Inclusive range of harmonic orders to evaluate for the 'flatness' criterion.
-FLATNESS_ORDER_MIN = -2
-FLATNESS_ORDER_MAX =  2
+FLATNESS_ORDER_MIN = -3
+FLATNESS_ORDER_MAX =  3
 
 # Orders to suppress for the 'dark_window' criterion. The metric minimised is
 # the maximum CE across all listed orders (minimax suppression).
-DARK_WINDOW_ORDERS = [0, 1, 2]
+DARK_WINDOW_ORDERS = [-1, 0]
 
 # Metric normalisation:
 #   False      → raw peak power [dBm]

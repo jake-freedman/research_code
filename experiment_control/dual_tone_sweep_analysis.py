@@ -12,7 +12,7 @@ from path_utils import local_path
 # ------------------------------------------------------------------
 
 # DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-17-11-09-05.npz"
+DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-19-14-22-32.npz"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -23,13 +23,13 @@ DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\
 #   'ch2_phase'    — channel 2 phase offset (deg)
 #   'stability'    — step index (use when all parameters are held constant to
 #                    check measurement repeatability over time)
-X_AXIS = 'ch2_phase'
+X_AXIS = 'stability'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)
 #   True       → y-axis in dBc  (relative to optical carrier, log scale)
 #   'percent'  → y-axis in %    (fraction of carrier power, linear scale)
-NORMALIZE = 'percent'
+NORMALIZE = True
 
 # Show the calibration (carrier-beat) power vs sweep parameter?
 SHOW_CALIBRATION = True
@@ -60,7 +60,7 @@ if NORMALIZE == 'percent':
     POWER_YMIN = 0
     POWER_YMAX = 101
 else:
-      POWER_YMIN = -90
+      POWER_YMIN = -30
       POWER_YMAX = 5
 
 # Y-axis limits for calibration plot (dBm). None = auto.
