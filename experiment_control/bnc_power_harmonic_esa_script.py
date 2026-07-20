@@ -25,7 +25,7 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
 
 
 def voltage_linspace(p_start_dbm: float, p_stop_dbm: float, n: int) -> np.ndarray:
@@ -260,11 +260,11 @@ def bnc_power_heterodyne_sweep(
 
 
 def main():
-    cw_powers = voltage_linspace(0, 25.5, 50)
+    cw_powers = voltage_linspace(10, 20, 100)
     # 25 max for f1, 20 max for f2
 
     bnc_power_heterodyne_sweep(
-        cw_freq=1.130e9,
+        cw_freq=2*1.130e9,
         homodyne=False,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,

@@ -36,7 +36,7 @@ SHOW_GRID   = True
 SHOW_LEGEND = False
 
 # dB mode only: floor of the y-axis in dBc. None = auto.
-FLOOR_DBc = -50.0
+FLOOR_DBc = -80.0
 
 # Bessel series truncation (increase for large β)
 K_TRUNC = int(2 * max(BETA1, BETA2)) + 20

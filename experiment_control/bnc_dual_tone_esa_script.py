@@ -513,14 +513,14 @@ def main():
 
     DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
 
-    M = 180
+    M = 360
     f0 = 1.130e9
 
     # Example: sweep channel 2 phase 0–360°, all other params fixed
     drive_freqs    = np.ones(M) * f0
-    ch1_powers_dbm = np.ones(M) * (22.70) # max 25
+    ch1_powers_dbm = np.ones(M) * (22.94) # max 25
     # ch1_powers_dbm = np.linspace(0, 23.5, M)
-    ch2_powers_dbm = np.ones(M) * 11.16 # max 20
+    ch2_powers_dbm = np.ones(M) * 10.89 # max 20
     # ch2_powers_dbm = np.linspace(-10, 15, M)
     ch1_phases_deg = np.ones(M) * 0.0
     # ch2_phases_deg = np.ones(M) * 100
@@ -533,12 +533,12 @@ def main():
         ch1_phases_deg=ch1_phases_deg,
         ch2_phases_deg=ch2_phases_deg,
         data_folder=DATA_FOLDER,
-        harmonics=(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+        harmonics=(-2, -1, 0, 1, 2),
         heterodyne_shift=125e6,
-        window_hz=1e6,
-        esa_freq_step=2e6/1001,
+        window_hz=1e3,
+        esa_freq_step=1e3/1001,
         esa_res_bw=10e3,
-        esa_ref_level=-20,
+        esa_ref_level=-40,
         settle_time_s=0.05,
         optional_name='phase_sweep_',
         use_cxa=True,
