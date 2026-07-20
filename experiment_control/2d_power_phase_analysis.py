@@ -37,11 +37,11 @@ SIDEBAND_CMAP = mcolors.LinearSegmentedColormap.from_list(
     'sideband_pm1', [CMAP_COLOR_LOW, CMAP_COLOR_HIGH]
 )
 
-FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-07-16-14-09-06"
-# FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-06-23-14-30-45"
+# FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-07-16-14-09-06"
+FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\2d_power_phase_2026-06-23-14-30-45"
 
 # Harmonic order to plot (must be in the harmonics list recorded by the script)
-HARMONIC = 1
+HARMONIC = -1   
 
 # Normalization for the colour axis:
 #   False     → dBm  (raw ESA peak power)
@@ -116,8 +116,8 @@ THEORY_N2 = 100   # ch2 axis
 # range as the measurement grid (v1.min()..v1.max() / v2.min()..v2.max()) --
 # set these to extrapolate beyond, or zoom into a sub-range of, the swept
 # voltages.
-THEORY_V1_RANGE = (0,4.2)   # (vmin, vmax), ch1
-THEORY_V2_RANGE = (0,1.3)   # ch2
+THEORY_V1_RANGE = (0,6.2)   # (vmin, vmax), ch1
+THEORY_V2_RANGE = (0,2.3)   # ch2
 
 # On the theory surface (3D only), outline the rectangle in (V1, V2) that
 # the actual experimental sweep covered -- useful when THEORY_V1_RANGE/
