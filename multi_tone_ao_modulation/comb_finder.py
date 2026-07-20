@@ -50,13 +50,13 @@ def _harmonic_color(n: int) -> str:
 # User settings
 # ─────────────────────────────────────────────────────────────────────────────
 
-FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\2d_power_phase_2026-07-16-16-38-54"
+FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\nice_flat_phase_sweep_data_9orders.npz"
 
 # Optimisation criterion.
 CRITERION = 'flatness'
 
 # Which harmonic order to optimise (for 'max_harmonic').
-TARGET_HARMONIC = -1
+TARGET_HARMONIC = 1
 
 # Inclusive range of harmonic orders to evaluate for the 'flatness' criterion.
 FLATNESS_ORDER_MIN = -3
@@ -758,7 +758,7 @@ def main():
         print(f"Best comb for maximum n={TARGET_HARMONIC} power:")
         print(f"  Ch1 power : {result['best_ch1_power']:+.2f} dBm  (grid i={result['best_i']})")
         print(f"  Ch2 power : {result['best_ch2_power']:+.2f} dBm  (grid j={result['best_j']})")
-        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg")
+        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg  (k={result['best_phase_idx']})")
         print(f"  Metric    : {result['best_metric']:.3f} {unit}")
 
         plot_max_harmonic(result, meta, NORMALIZE, TARGET_HARMONIC)
@@ -771,7 +771,7 @@ def main():
         print(f"Flattest comb over orders {result['flatness_orders']}:")
         print(f"  Ch1 power : {result['best_ch1_power']:+.2f} dBm  (grid i={result['best_i']})")
         print(f"  Ch2 power : {result['best_ch2_power']:+.2f} dBm  (grid j={result['best_j']})")
-        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg")
+        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg  (k={result['best_phase_idx']})")
         print(f"  CE std    : {result['best_metric']:.3f} {unit}")
 
         plot_flattest_comb(result, meta, NORMALIZE)
@@ -783,7 +783,7 @@ def main():
         print(f"Darkest window for orders {result['dark_orders']}:")
         print(f"  Ch1 power : {result['best_ch1_power']:+.2f} dBm  (grid i={result['best_i']})")
         print(f"  Ch2 power : {result['best_ch2_power']:+.2f} dBm  (grid j={result['best_j']})")
-        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg")
+        print(f"  Ch2 phase : {result['best_phase_deg']:.1f} deg  (k={result['best_phase_idx']})")
         print(f"  Max CE    : {result['best_metric']:.3f} {unit}")
 
         plot_dark_window(result, meta, NORMALIZE)
