@@ -3,7 +3,7 @@ from scipy.special import jv
 from scipy.optimize import differential_evolution
 
 # ── configuration ─────────────────────────────────────────────────────────────
-BETA1_MAX = 2
+BETA1_MAX = 3
 BETA2_MAX = 3
 
 # Truncation: sum runs k = -K_TRUNC ... K_TRUNC.
@@ -12,7 +12,7 @@ K_TRUNC = int(2 * max(BETA1_MAX, BETA2_MAX)) + 20
 # 'maximize' → maximise  |A_{ORDER_A}|²
 # 'suppress' → minimise  |A_{ORDER_A}|²
 # 'ratio'    → maximise  |A_{ORDER_A}|² / Σ |A_{ORDER_B_i}|²
-OPTIMIZE_MODE = 'ratio'
+OPTIMIZE_MODE = 'maximize'
 ORDER_A  = 1        # numerator order
 ORDERS_B = [-1, 0]  # denominator orders (list); sum of their powers forms the denominator
 

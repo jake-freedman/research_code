@@ -51,13 +51,13 @@ tick_label_fontsize = 8
 
 # Same harmonic color scheme as dual_tone_sweep_analysis.py / dual_tone_sweep_data.py
 _HARMONIC_COLORS = {
-    -4: '#bf7362',
+    -3: '#bf7362',
     -2: RED2,
     -1: ORANGE2,
      0: GREEN2,
      1: LIGHTBLUE2,
      2: '#5c70aa',
-     4: VIOLET2,
+     3: VIOLET2,
 }
 _EXTRA_COLORS = [BLUE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2, DARKGRAY2]
 
@@ -65,19 +65,19 @@ _EXTRA_COLORS = [BLUE2, PINK2, TAN2, DARKGREEN2, DARKBLUE2, DARKGRAY2]
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\wg6_mode1_calibration.npz"
-
+# DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\wg1_calibration\wg1_mode1_calibration_data.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\really_good_bnc_power_sweep_mode2.npz"
 # X-axis for the sideband/calibration plots: 'voltage' (V_rms) or 'dbm'.
 # (Anchor V_pi values are always computed from the true RF voltage,
 # regardless of this setting -- it only affects how the plots and anchor
 # search windows are displayed.)
-X_AXIS = 'voltage'
+X_AXIS = 'dbm'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)
 #   True       → y-axis in dBc  (relative to optical carrier, log scale)
 #   'percent'  → y-axis in %    (fraction of carrier power, linear scale)
-NORMALIZE = 'percent'
+NORMALIZE = True
 
 # Show the calibration (carrier-beat) power vs drive level?
 SHOW_CALIBRATION = False
@@ -110,9 +110,9 @@ CAL_YMIN = -80
 CAL_YMAX = -40
 
 # ── sideband curve style ──────────────────────────────────────────────────────
-SIDEBAND_LINESTYLE        = 'none'
+SIDEBAND_LINESTYLE        = '-'
 SIDEBAND_LINEWIDTH        = 1.5
-SIDEBAND_MARKER           = 'o'
+SIDEBAND_MARKER           = 'none'
 SIDEBAND_MARKERSIZE       = 6
 SIDEBAND_MARKER_FACECOLOR = None   # None = match the harmonic's line color
 SIDEBAND_MARKER_EDGECOLOR = None   # None = match the harmonic's line color
@@ -156,8 +156,8 @@ SIDEBAND_ZORDER           = 2
 # ]
 
 ANCHOR_POINTS = [
-    {'harmonic': 1, 'beta_zero': 1.8412, 'window': (0.5, 4.0), 'kind': 'max', 'label': 'J1 1st max'},
-    {'harmonic': 0, 'beta_zero': 2.405, 'window': (0.5, 4.5), 'label': 'J0 1st null'},
+    # {'harmonic': 1, 'beta_zero': 1.8412, 'window': (0, 3.0), 'kind': 'max', 'label': 'J1 1st max'},
+    # {'harmonic': 0, 'beta_zero': 2.405, 'window': (0.5, 4.5), 'label': 'J0 1st null'},
 
     # Inflection points (curvature zeros of J_n(beta)^2, numerically rooted --
     # not standard tabulated constants). Voltages below use V_pi = 1.5605 V,
@@ -205,7 +205,7 @@ DERIVATIVE_SVG_NAME   = 'vpi_anchor_derivative.svg'
 # anchors if THEORY_ANCHORS is None. In raw-dBm mode (NORMALIZE = False) this
 # requires per-step calibration (cal_spectra) to convert the Bessel fraction
 # to dBm.
-SHOW_THEORY = True
+SHOW_THEORY = False
 THEORY_ANCHORS = None
 # Which harmonics to draw theory curves for. None = same as HARMONICS_TO_SHOW
 # (or all recorded harmonics if that is also None).
@@ -233,7 +233,7 @@ CORRECTION_VOLTAGE = 0.82   # reference RF voltage in V_rms; None = disabled
 # ANCHOR_POINTS index or anchor 'label' string.
 CORRECTION_VPI_SOURCE = None
 # Apply the per-harmonic correction factor to the plotted sideband data?
-APPLY_CORRECTION = True
+APPLY_CORRECTION = False
 
 # When APPLY_CORRECTION is on, show a slider (+ an on/off checkbox) under the
 # sideband plot: the slider drags the correction reference voltage live, and
@@ -379,10 +379,16 @@ def load_averaged(filepath: str) -> PowerHeterodyneSweepData:
         spectra = 10.0 * np.log10((10.0 ** (spectra / 10.0)).mean(axis=0))
     elif spectra.ndim != 3:
         raise ValueError(f"Unexpected spectra shape {spectra.shape} in {filepath}")
+    # PowerHeterodyneSweepData.peak_powers_dbm()/cal_peak_power_dbm() always
+    # expect a leading repeat axis (R, M, N, K); restore a singleton one now
+    # that repeats have already been averaged out above.
+    spectra = spectra[np.newaxis]
 
     cal = d['cal_spectra'] if 'cal_spectra' in d else None
-    if cal is not None and cal.ndim == 3:
-        cal = 10.0 * np.log10((10.0 ** (cal / 10.0)).mean(axis=0))
+    if cal is not None:
+        if cal.ndim == 3:
+            cal = 10.0 * np.log10((10.0 ** (cal / 10.0)).mean(axis=0))
+        cal = cal[np.newaxis]
 
     data = PowerHeterodyneSweepData.__new__(PowerHeterodyneSweepData)
     data.cw_freq          = float(d['cw_freq'])
@@ -1038,10 +1044,10 @@ def main():
     print("\nV_pi anchor points:")
     anchor_results = []   # aligned with ANCHOR_POINTS; None where extraction failed
     for anchor in ANCHOR_POINTS:
-        label = anchor.get('label', f"harmonic {anchor['harmonic']}")
+        label = anchor.get('label') or f"harmonic {anchor.get('harmonic', '?')}"
         try:
             dip_idx, v_dip, vpi = find_anchor_vpi(data, anchor, x)
-        except ValueError as e:
+        except (ValueError, KeyError) as e:
             print(f"  {label}: {e}")
             anchor_results.append(None)
             continue
@@ -1058,22 +1064,35 @@ def main():
               f"{np.mean(vpis):.4f} V  (std {np.std(vpis):.4f} V)")
 
     # ── per-harmonic efficiency correction ────────────────────────────────────
+    # Wrapped in try/except: this whole feature depends on at least one
+    # anchor's V_pi (a "fit") plus, for the two blocks below, per-step
+    # calibration -- neither is guaranteed, and a failure here should never
+    # prevent the base sideband data (already loaded above) from being
+    # plotted below.
     correction = None
     vpi_ref = None
+    v_actual = None
     if APPLY_CORRECTION:
         if CORRECTION_VOLTAGE is None:
             print("\nWarning: APPLY_CORRECTION is on but CORRECTION_VOLTAGE is "
                   "None; skipping correction.")
+        elif not any(r is not None for r in anchor_results):
+            print("\nWarning: APPLY_CORRECTION is on but no ANCHOR_POINTS were "
+                  "successfully found; skipping correction.")
         else:
-            vpi_ref = _resolve_vpi_source(anchor_results, CORRECTION_VPI_SOURCE)
-            correction, idx_ref, v_actual = compute_correction_factors(
-                data, vpi_ref, CORRECTION_VOLTAGE)
-            print(f"\nEfficiency correction at V={v_actual:.4f} V_rms "
-                  f"(nearest to requested {CORRECTION_VOLTAGE:.4f} V_rms, "
-                  f"V_pi={vpi_ref:.4f} V):")
-            for n, factor in correction.items():
-                print(f"  Harmonic {n}: factor = {factor:.4f}  "
-                      f"({10.0 * np.log10(max(factor, 1e-30)):+.2f} dB)")
+            try:
+                vpi_ref = _resolve_vpi_source(anchor_results, CORRECTION_VPI_SOURCE)
+                correction, idx_ref, v_actual = compute_correction_factors(
+                    data, vpi_ref, CORRECTION_VOLTAGE)
+                print(f"\nEfficiency correction at V={v_actual:.4f} V_rms "
+                      f"(nearest to requested {CORRECTION_VOLTAGE:.4f} V_rms, "
+                      f"V_pi={vpi_ref:.4f} V):")
+                for n, factor in correction.items():
+                    print(f"  Harmonic {n}: factor = {factor:.4f}  "
+                          f"({10.0 * np.log10(max(factor, 1e-30)):+.2f} dB)")
+            except (RuntimeError, ValueError) as e:
+                print(f"\nWarning: APPLY_CORRECTION failed ({e}); plotting uncorrected data.")
+                correction, vpi_ref, v_actual = None, None, None
 
     # ── plots ─────────────────────────────────────────────────────────────────
     fig_pow, ax_pow, lines_pow = plot_sideband_powers(data, x, xlabel, normalize, harmonic_colors,
@@ -1105,8 +1124,12 @@ def main():
             if result is None:
                 continue
             label, vpi = result
-            dip_idx, _, _ = find_anchor_vpi(data, anchor, x)
-            idx_h = _harmonic_idx(data, anchor['harmonic'])
+            try:
+                dip_idx, _, _ = find_anchor_vpi(data, anchor, x)
+                idx_h = _harmonic_idx(data, anchor['harmonic'])
+            except (ValueError, KeyError) as e:
+                print(f"\nWarning: couldn't place anchor marker for {label!r} ({e}); skipping.")
+                continue
             y_dip = peak_vals[dip_idx, idx_h]
             ax_pow.scatter([x[dip_idx]], [y_dip],
                            color=ANCHOR_MARKER_COLOR, marker=ANCHOR_MARKER_STYLE,
@@ -1130,7 +1153,11 @@ def main():
                 if result is None:
                     continue
                 label, vpi = result
-                dip_idx, _, _ = find_anchor_vpi(data, anchor, x)
+                try:
+                    dip_idx, _, _ = find_anchor_vpi(data, anchor, x)
+                except ValueError as e:
+                    print(f"\nWarning: couldn't place derivative anchor marker for {label!r} ({e}); skipping.")
+                    continue
                 harmonic = anchor['harmonic']
                 if harmonic not in derivatives:
                     continue
@@ -1150,41 +1177,55 @@ def main():
         if SHOW_LEGEND:
             ax_deriv.legend(fontsize=tick_label_fontsize, frameon=False)
 
+    # Also wrapped in try/except: compute_correction_factors_multi requires
+    # per-step calibration (cal_spectra), which may not exist even when an
+    # anchor V_pi was found -- that shouldn't take down the base plot either.
     fig_bar, ax_bar = None, None
-    if SHOW_CORRECTED_CLOUD or SHOW_CORRECTION_BAR_PLOT:
-        vpi_ref_cloud = _resolve_vpi_source(anchor_results, CORRECTION_VPI_SOURCE)
-        v_min, v_max = CORRECTION_VOLTAGE_RANGE
-        factors_mean, factors_std, n_used = compute_correction_factors_multi(
-            data, vpi_ref_cloud, v_min, v_max, CORRECTION_N_SAMPLES, CORRECTION_MIN_CE)
-        print(f"\nMulti-voltage efficiency correction ({CORRECTION_N_SAMPLES} samples "
-              f"over {v_min:.4f}-{v_max:.4f} V_rms, V_pi={vpi_ref_cloud:.4f} V):")
-        for n in data.harmonics:
-            n = int(n)
-            if n in factors_mean:
-                print(f"  Harmonic {n}: factor = {factors_mean[n]:.4f} ± "
-                      f"{factors_std[n]:.4f}  (n={n_used[n]} samples used)")
-            else:
-                print(f"  Harmonic {n}: no samples passed "
-                      f"CORRECTION_MIN_CE={CORRECTION_MIN_CE:.3f}")
+    if (SHOW_CORRECTED_CLOUD or SHOW_CORRECTION_BAR_PLOT) and not any(
+            r is not None for r in anchor_results):
+        print("\nWarning: SHOW_CORRECTED_CLOUD/SHOW_CORRECTION_BAR_PLOT are on but no "
+              "ANCHOR_POINTS were successfully found; skipping.")
+    elif SHOW_CORRECTED_CLOUD or SHOW_CORRECTION_BAR_PLOT:
+        try:
+            vpi_ref_cloud = _resolve_vpi_source(anchor_results, CORRECTION_VPI_SOURCE)
+            v_min, v_max = CORRECTION_VOLTAGE_RANGE
+            factors_mean, factors_std, n_used = compute_correction_factors_multi(
+                data, vpi_ref_cloud, v_min, v_max, CORRECTION_N_SAMPLES, CORRECTION_MIN_CE)
+        except (RuntimeError, ValueError) as e:
+            print(f"\nWarning: SHOW_CORRECTED_CLOUD/SHOW_CORRECTION_BAR_PLOT failed ({e}); skipping.")
+        else:
+            print(f"\nMulti-voltage efficiency correction ({CORRECTION_N_SAMPLES} samples "
+                  f"over {v_min:.4f}-{v_max:.4f} V_rms, V_pi={vpi_ref_cloud:.4f} V):")
+            for n in data.harmonics:
+                n = int(n)
+                if n in factors_mean:
+                    print(f"  Harmonic {n}: factor = {factors_mean[n]:.4f} ± "
+                          f"{factors_std[n]:.4f}  (n={n_used[n]} samples used)")
+                else:
+                    print(f"  Harmonic {n}: no samples passed "
+                          f"CORRECTION_MIN_CE={CORRECTION_MIN_CE:.3f}")
 
-        if SHOW_CORRECTED_CLOUD:
-            corrected_harmonics = (
-                CORRECTED_HARMONICS if CORRECTED_HARMONICS is not None
-                else (HARMONICS_TO_SHOW if HARMONICS_TO_SHOW is not None else list(data.harmonics))
-            )
-            plot_corrected_cloud(ax_pow, data, x, normalize, corrected_harmonics,
-                                  factors_mean, factors_std, harmonic_colors)
+            if SHOW_CORRECTED_CLOUD:
+                corrected_harmonics = (
+                    CORRECTED_HARMONICS if CORRECTED_HARMONICS is not None
+                    else (HARMONICS_TO_SHOW if HARMONICS_TO_SHOW is not None else list(data.harmonics))
+                )
+                plot_corrected_cloud(ax_pow, data, x, normalize, corrected_harmonics,
+                                      factors_mean, factors_std, harmonic_colors)
 
-        if SHOW_CORRECTION_BAR_PLOT:
-            fig_bar, ax_bar = plot_correction_factor_bars(
-                data.harmonics, factors_mean, factors_std, harmonic_colors)
+            if SHOW_CORRECTION_BAR_PLOT:
+                try:
+                    fig_bar, ax_bar = plot_correction_factor_bars(
+                        data.harmonics, factors_mean, factors_std, harmonic_colors)
+                except RuntimeError as e:
+                    print(f"\nWarning: SHOW_CORRECTION_BAR_PLOT failed ({e}); skipping.")
 
+    # SHOW_THEORY: same idea -- a missing/failed anchor V_pi, or (for raw-dBm
+    # mode) missing cal_spectra, shouldn't take down the base plot.
     if SHOW_THEORY:
         try:
             vpi_theory = _resolve_vpi_average(anchor_results, THEORY_ANCHORS)
-        except (RuntimeError, ValueError) as e:
-            print(f"\nSHOW_THEORY is on but {e}")
-        else:
+
             n_used_theory = sum(1 for r in anchor_results if r is not None)
             theory_label = (f'Theory (mean of {n_used_theory} anchor(s))' if THEORY_ANCHORS is None
                              else f'Theory (mean of {THEORY_ANCHORS})')
@@ -1196,6 +1237,8 @@ def main():
             )
             plot_theory_curves(ax_pow, data, x, normalize, theory_harmonics,
                                 [(theory_label, vpi_theory)], harmonic_colors)
+        except (RuntimeError, ValueError) as e:
+            print(f"\nWarning: SHOW_THEORY failed ({e}); skipping.")
 
     if SHOW_LEGEND:
         ax_pow.legend(fontsize=tick_label_fontsize, frameon=False)

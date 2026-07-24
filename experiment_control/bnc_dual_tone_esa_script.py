@@ -518,7 +518,7 @@ def main():
 
     # Example: sweep channel 2 phase 0–360°, all other params fixed
     drive_freqs    = np.ones(M) * f0
-    ch1_powers_dbm = np.ones(M) * (20.17) # max 25
+    ch1_powers_dbm = np.ones(M) * (18.97) # max 25
     # ch1_powers_dbm = np.linspace(0, 23.5, M)
     ch2_powers_dbm = np.ones(M) * 10.89 # max 20
     # ch2_powers_dbm = np.linspace(-10, 15, M)

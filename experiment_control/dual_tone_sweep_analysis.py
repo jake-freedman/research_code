@@ -11,8 +11,8 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w2_d21_wg5a_p5\phase_sweep_dual_tone_sweep_2026-06-24-10-17-19.npz"
-# DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-17-11-09-05.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-16-13-55-04.npz"
+# DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-17-11-09-05.npz"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -23,13 +23,13 @@ DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\
 #   'ch2_phase'    — channel 2 phase offset (deg)
 #   'stability'    — step index (use when all parameters are held constant to
 #                    check measurement repeatability over time)
-X_AXIS = 'stability'
+X_AXIS = 'ch2_phase'
 
 # Normalize sideband powers by the per-step calibration carrier level?
 #   False      → y-axis in dBm  (raw ESA power)
 #   True       → y-axis in dBc  (relative to optical carrier, log scale)
 #   'percent'  → y-axis in %    (fraction of carrier power, linear scale)
-NORMALIZE = True
+NORMALIZE = 'percent'
 
 # Show the calibration (carrier-beat) power vs sweep parameter?
 SHOW_CALIBRATION = True
@@ -82,11 +82,11 @@ axes_height_mm = 55
 # ── split figures ─────────────────────────────────────────────────────────────
 # When True, produce three separate power figures instead of one.
 # Each dict: harmonics to include, y-limits, axes size, and SVG filename.
-SPLIT_FIGURES = False
+SPLIT_FIGURES = True
 SPLIT_GROUPS = [
-    {'harmonics': [0],      'ymin': 0,   'ymax': 18,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_0.svg'},
-    {'harmonics': [-1, 1],  'ymin': -2,  'ymax': 53,  'w_mm': 85,  'h_mm': 55,  'marker_pt': 8,  'svg': 'dual_tone_sweep_powers_pm1.svg'},
-    {'harmonics': [-2, 2],  'ymin': 0,   'ymax': 18,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_pm2.svg'},
+    {'harmonics': [0],      'ymin': 0,   'ymax': 20,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_0.svg'},
+    {'harmonics': [-1, 1],  'ymin': -2,  'ymax': 55,  'w_mm': 85,  'h_mm': 45,  'marker_pt': 8,  'svg': 'dual_tone_sweep_powers_pm1.svg'},
+    {'harmonics': [-2, 2],  'ymin': 0,   'ymax': 20,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_pm2.svg'},
 ]
 
 # ── calibration scaling ───────────────────────────────────────────────────────
@@ -122,12 +122,69 @@ PUB_CURVE_WIDTH         = 2.0       # linewidth in points
 #                      Assumes X_AXIS is a phase in degrees (ch1_phase or
 #                      ch2_phase); phi = deg2rad(x). N (PUB_PHASE_HARMONIC_N)
 #                      is the same for every sideband.
-PUB_CURVE_MODE          = 'phase_harmonics'
+# 'nonlinear_phase' → a physically-motivated JOINT fit (one simultaneous
+#                      differential_evolution optimization pooling every
+#                      displayed combline's data at once, unlike the two modes
+#                      above which fit each combline independently) of
+#                        theta(t) = beta1*sin(Wt) + beta2*sin(2Wt+phi+phi0) + beta2_nl*sin(2Wt+phi_NL)
+#                      phi1 = 0 fixed reference; phi is the swept ch2 phase
+#                      (X_AXIS must be 'ch2_phase'); phi0 is a static phase
+#                      offset applied only to the swept beta2 term (e.g. a
+#                      calibration offset between commanded and true ch2
+#                      phase). beta2_nl/phi_NL model a fixed-phase
+#                      nonlinear/parasitic 2f contribution that doesn't track
+#                      the swept ch2 phase, interfering with the intentional
+#                      beta2 term as phi sweeps. See NL_FIT_* below for search
+#                      bounds/initial guess.
+PUB_CURVE_MODE          = 'nonlinear_phase'
 # Per-combline period count for the sinusoid frequency initial guess (PUB_CURVE_MODE = 'sinusoid').
 # Keys are harmonic orders (int); missing orders default to 1.
 PUB_SINUSOID_N_PERIODS  = {0:(1,2,3), -2: (1,2,3), 2: (1,2,3), -1: (1,2,3), 1: (1,2,3)}
 # Number of phase harmonics N to fit (PUB_CURVE_MODE = 'phase_harmonics'), same for every sideband.
 PUB_PHASE_HARMONIC_N    = 3
+
+# ── nonlinear-phase joint fit (PUB_CURVE_MODE = 'nonlinear_phase') ────────────
+NL_FIT_BETA1_BOUNDS      = (0.0, 3.0)     # rad
+NL_FIT_BETA2_BOUNDS      = (0.0, 3.0)     # rad
+NL_FIT_BETA2_NL_BOUNDS   = (0.0, 3.0)     # rad
+NL_FIT_PHI0_BOUNDS_DEG   = (0.0, 360.0)   # static offset added to the swept phi (beta2 term only)
+NL_FIT_PHI_NL_BOUNDS_DEG = (0.0, 360.0)
+
+# Optional initial guess seeding differential_evolution's population (still a
+# global search around it, not a strict local refinement -- useful to steer
+# it toward the intended solution if the comb has near-degenerate fits). Any
+# left None falls back to the midpoint of its search bounds.
+NL_FIT_GUESS_BETA1      = None
+NL_FIT_GUESS_BETA2      = None
+NL_FIT_GUESS_BETA2_NL   = None
+NL_FIT_GUESS_PHI0_DEG   = None
+NL_FIT_GUESS_PHI_NL_DEG = None
+NL_FIT_SEED = None   # differential_evolution seed; None = nondeterministic
+
+# When True, the joint fit gets one extra free multiplicative scale factor per
+# displayed harmonic (applied to that harmonic's predicted linear power,
+# bounded by NL_FIT_SCALE_BOUNDS) to absorb small systematic per-sideband
+# calibration/measurement errors without biasing beta1/beta2/beta2_nl/phi0/phi_NL.
+# When False (default), every sideband's scale factor is fixed at 1.0.
+NL_FIT_PER_SIDEBAND_SCALE = True
+NL_FIT_SCALE_BOUNDS       = (0.6, 1.2)
+
+# When True, opens a small control window with 5 sliders (beta1, beta2,
+# beta2_nl, phi0, phi_NL) that let you manually override the fitted values
+# and see every displayed nonlinear_phase overlay curve -- across all
+# SPLIT_GROUPS figures at once, if SPLIT_FIGURES -- update live as you drag
+# them. Useful to visually check whether the automatic fit landed in the
+# right basin, or to explore/fine-tune it by eye. If the automatic joint fit
+# failed, the sliders still appear (so you can search by hand), starting from
+# NL_FIT_GUESS_*/bounds-midpoint instead of a fitted value.
+NL_FIT_INTERACTIVE_SLIDERS = True
+NL_SLIDER_WIDTH_MM  = 70.0
+NL_SLIDER_HEIGHT_MM = 8.0
+NL_SLIDER_GAP_MM    = 4.0     # vertical gap between sliders
+NL_SLIDER_MARGIN_LEFT_MM   = 30.0
+NL_SLIDER_MARGIN_RIGHT_MM  = 15.0
+NL_SLIDER_MARGIN_TOP_MM    = 8.0
+NL_SLIDER_MARGIN_BOTTOM_MM = 8.0
 
 
 def main():
@@ -193,6 +250,9 @@ def main():
     import os as _os
     import matplotlib.colors as _mc
     from scipy.optimize import curve_fit as _curve_fit
+    from scipy.optimize import differential_evolution as _differential_evolution
+    from scipy.special import jv as _bessel_jv
+    from matplotlib.widgets import Slider as _Slider
 
     def _parse_order(lbl):
         parts = lbl.split()
@@ -226,6 +286,120 @@ def main():
                 total = total + 2.0 * params[m - 1] * np.cos(m * phi_rad + m * phi0)
             return total
         return _model
+
+    def _nl_phase_amplitudes(beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad, phi_rad, harmonics, k_trunc):
+        """
+        Vectorized Jacobi-Anger amplitudes A_n(phi_i) for
+            theta(t) = beta1*sin(Wt) + beta2*sin(2Wt+phi+phi0) + beta2_nl*sin(2Wt+phi_NL),
+        phi1 = 0 fixed. phi0 is a static offset added only to the swept beta2
+        term. The two 2f terms (beta2 at the swept phi+phi0, beta2_nl at the
+        fixed phi_nl) combine via phasor sum into a single effective two-tone
+        drive at 2f:
+            Z(phi) = beta2*exp(i*(phi+phi0)) + beta2_nl*exp(i*phi_nl)
+            beta_eff = |Z|, phi_eff = angle(Z)
+        so this reduces to the same dual_tone_amplitudes() (comb_displayer.py)
+        formula, just with (beta2, phi2) replaced by (beta_eff(phi), phi_eff(phi))
+        -- computed here directly (not via that function) so every phi_rad
+        point is evaluated in one vectorized pass instead of a Python loop.
+        Returns {harmonic: (M,) complex array}, one amplitude per phi_rad entry.
+        """
+        phi_rad = np.asarray(phi_rad, dtype=float)
+        Z = beta2 * np.exp(1j * (phi_rad + phi0_rad)) + beta2_nl * np.exp(1j * phi_nl_rad)
+        beta_eff = np.abs(Z)
+        phi_eff = np.angle(Z)
+
+        k = np.arange(-k_trunc, k_trunc + 1)
+        Jk_beta_eff = _bessel_jv(k[:, None], beta_eff[None, :])       # (K, M)
+        phase = np.exp(1j * k[:, None] * phi_eff[None, :])            # (K, M)
+
+        return {
+            n: np.sum(_bessel_jv(n - 2 * k, beta1)[:, None] * Jk_beta_eff * phase, axis=0)
+            for n in harmonics
+        }
+
+    def _nl_phase_cost(params, phi_rad, harmonics, measured_dbc, k_trunc):
+        beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad = params[:5]
+        scales = params[5:]   # one per harmonic, in `harmonics` order; empty if disabled
+        amps = _nl_phase_amplitudes(beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad, phi_rad, harmonics, k_trunc)
+        err = 0.0
+        for idx, n in enumerate(harmonics):
+            scale = scales[idx] if len(scales) else 1.0
+            pred_dbc = 10.0 * np.log10(np.maximum(scale * np.abs(amps[n]) ** 2, 1e-30))
+            err += np.sum((measured_dbc[n] - pred_dbc) ** 2)
+        return float(err)
+
+    def _nl_curve_y(beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad, x_deg, order, k_trunc, scale=1.0):
+        """One harmonic's predicted y (in whatever units NORMALIZE gives) at
+        the given x_deg (ch2 phase, degrees) -- shared by both the initial
+        overlay draw and every slider-driven update."""
+        phi_rad = np.deg2rad(x_deg)
+        amps = _nl_phase_amplitudes(beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad, phi_rad, [order], k_trunc)
+        frac = np.abs(amps[order]) ** 2 * scale
+        if NORMALIZE == 'percent':
+            return frac * 100.0
+        if NORMALIZE:
+            return 10.0 * np.log10(np.maximum(frac, 1e-30))
+        cal_dbm_fit = np.interp(x_deg, data.ch2_phases_deg, data.cal_peak_power_dbm())
+        return cal_dbm_fit + 10.0 * np.log10(np.maximum(frac, 1e-30))
+
+    def _add_nl_fit_sliders(nl_fit_lines, initial):
+        """
+        Opens a small control figure with sliders for beta1, beta2, beta2_nl,
+        phi0, phi_NL, plus (if NL_FIT_PER_SIDEBAND_SCALE) one more per
+        displayed harmonic's power scale factor, that update every
+        (line, order, x_fit_deg, k_trunc) tuple in nl_fit_lines live as
+        they're dragged -- across every figure any of those lines belongs to
+        (SPLIT_FIGURES may spread them over several). Returns
+        (fig_ctrl, sliders) -- the caller must keep a reference to both (e.g.
+        local variables held until plt.show()), or they will stop responding
+        once garbage-collected.
+        """
+        specs = [
+            ('beta1',    NL_FIT_BETA1_BOUNDS,      initial['beta1']),
+            ('beta2',    NL_FIT_BETA2_BOUNDS,      initial['beta2']),
+            ('beta2_nl', NL_FIT_BETA2_NL_BOUNDS,   initial['beta2_nl']),
+            ('phi0',     NL_FIT_PHI0_BOUNDS_DEG,   np.degrees(initial['phi0_rad']) % 360.0),
+            ('phi_NL',   NL_FIT_PHI_NL_BOUNDS_DEG, np.degrees(initial['phi_nl_rad']) % 360.0),
+        ]
+        scale_harmonics = sorted(initial['scales']) if NL_FIT_PER_SIDEBAND_SCALE else []
+        for n in scale_harmonics:
+            specs.append((f'scale[{n:+d}]', NL_FIT_SCALE_BOUNDS, initial['scales'][n]))
+        n_sliders = len(specs)
+
+        fig_w_mm = NL_SLIDER_MARGIN_LEFT_MM + NL_SLIDER_WIDTH_MM + NL_SLIDER_MARGIN_RIGHT_MM
+        fig_h_mm = (NL_SLIDER_MARGIN_BOTTOM_MM + n_sliders * NL_SLIDER_HEIGHT_MM
+                    + (n_sliders - 1) * NL_SLIDER_GAP_MM + NL_SLIDER_MARGIN_TOP_MM)
+        mm = 1.0 / 25.4
+        fig_ctrl = plt.figure(figsize=(fig_w_mm * mm, fig_h_mm * mm))
+        fig_ctrl.canvas.manager.set_window_title('Nonlinear-phase fit controls')
+
+        sliders = []
+        for i, (label, (lo, hi), val0) in enumerate(specs):
+            top_mm = fig_h_mm - NL_SLIDER_MARGIN_TOP_MM - i * (NL_SLIDER_HEIGHT_MM + NL_SLIDER_GAP_MM)
+            bottom_mm = top_mm - NL_SLIDER_HEIGHT_MM
+            ax_s = fig_ctrl.add_axes([
+                NL_SLIDER_MARGIN_LEFT_MM / fig_w_mm, bottom_mm / fig_h_mm,
+                NL_SLIDER_WIDTH_MM / fig_w_mm, NL_SLIDER_HEIGHT_MM / fig_h_mm,
+            ])
+            sliders.append(_Slider(ax_s, label, lo, hi, valinit=float(np.clip(val0, lo, hi))))
+
+        def _on_change(_val):
+            beta1_s, beta2_s, beta2_nl_s = sliders[0].val, sliders[1].val, sliders[2].val
+            phi0_rad_s = np.deg2rad(sliders[3].val)
+            phi_nl_rad_s = np.deg2rad(sliders[4].val)
+            scale_s = {n: sliders[5 + i].val for i, n in enumerate(scale_harmonics)}
+            figs_to_redraw = set()
+            for line, order, x_fit_deg, k_trunc in nl_fit_lines:
+                line.set_ydata(_nl_curve_y(beta1_s, beta2_s, beta2_nl_s, phi0_rad_s, phi_nl_rad_s,
+                                            x_fit_deg, order, k_trunc, scale=scale_s.get(order, 1.0)))
+                figs_to_redraw.add(line.figure)
+            for f in figs_to_redraw:
+                f.canvas.draw_idle()
+
+        for s in sliders:
+            s.on_changed(_on_change)
+
+        return fig_ctrl, sliders
 
     def _apply_pub_style(fig, ax, svg_name, marker_pt=PUB_MARKER_PT):
         ax.set_xlabel('')
@@ -327,8 +501,150 @@ def main():
                         print(f"      C = {popt[-1]:.4f} {_fit_unit}")
                     except RuntimeError:
                         print(f"  Warning: phase-harmonic fit failed for harmonic {order}; skipping.")
+            elif PUB_CURVE_MODE == 'nonlinear_phase':
+                # nl_draw_params/fit_harmonics come from the ONE joint fit
+                # done once below (shared across every SPLIT_GROUPS axes) --
+                # unlike 'sinusoid'/'phase_harmonics' above, nothing is re-fit
+                # here. nl_draw_params is the fitted result if the automatic
+                # fit succeeded, or (only when NL_FIT_INTERACTIVE_SLIDERS is
+                # on) a guess/bounds-midpoint fallback so the sliders have a
+                # starting curve to drag from. If neither is available, or a
+                # harmonic on this axes wasn't part of the fit, its raw data
+                # is simply left visible rather than hidden with nothing to
+                # replace it.
+                if nl_draw_params is None:
+                    print("  Warning: nonlinear_phase fit unavailable; leaving raw data visible.")
+                else:
+                    for ln, _, _, _, order in _lines:
+                        if order in fit_harmonics:
+                            ln.set_visible(False)
+                    for _, xd_all, yd_all, fc, order in _lines:
+                        if order is None or order not in fit_harmonics:
+                            continue
+                        x_fit = np.linspace(xd_all.min(), xd_all.max(), 500)
+                        y_fit = _nl_curve_y(nl_draw_params['beta1'], nl_draw_params['beta2'],
+                                             nl_draw_params['beta2_nl'], nl_draw_params['phi0_rad'],
+                                             nl_draw_params['phi_nl_rad'],
+                                             x_fit, order, nl_draw_params['k_trunc'],
+                                             scale=nl_draw_params['scales'].get(order, 1.0))
+                        [line] = ax.plot(x_fit, y_fit, color=cc_fn(fc),
+                                          linewidth=PUB_CURVE_WIDTH, zorder=curve_z)
+                        nl_fit_lines.append((line, order, x_fit, nl_draw_params['k_trunc']))
         fig.savefig(_os.path.join(SAVE_FOLDER, svg_name), format='svg', bbox_inches='tight')
         print(f"Saved: {_os.path.join(SAVE_FOLDER, svg_name)}")
+
+    # ── nonlinear-phase joint fit: computed ONCE here (pooling every
+    # displayed harmonic's data across all SPLIT_GROUPS at once), then just
+    # looked up by _apply_pub_style above for each axes' overlay curve.
+    # nl_fit_result is the automatically-fitted parameters (None if that
+    # fit failed); nl_draw_params is what actually gets drawn/slider-driven --
+    # the fit if it succeeded, else (only with NL_FIT_INTERACTIVE_SLIDERS) a
+    # NL_FIT_GUESS_*/bounds-midpoint fallback so the sliders have a starting
+    # curve. If nl_draw_params ends up None, _apply_pub_style leaves each
+    # harmonic's raw data visible instead of hiding it with nothing to replace it.
+    fit_harmonics = []
+    nl_fit_result = None
+    nl_draw_params = None
+    nl_fit_lines = []
+    if FOR_PUBLICATION and PUB_CURVE_MODE == 'nonlinear_phase':
+        if SPLIT_FIGURES:
+            display_harmonics = sorted(set(h for grp in SPLIT_GROUPS for h in grp['harmonics']))
+        else:
+            display_harmonics = (sorted(set(HARMONICS_TO_SHOW)) if HARMONICS_TO_SHOW is not None
+                                  else sorted(int(n) for n in data.harmonics))
+        fit_harmonics = [n for n in display_harmonics if n in data.harmonics]
+
+        if X_AXIS != 'ch2_phase':
+            print(f"\n  Warning: PUB_CURVE_MODE='nonlinear_phase' assumes X_AXIS='ch2_phase' "
+                  f"(the swept phase in the model); current X_AXIS={X_AXIS!r}.")
+        if not fit_harmonics:
+            print("\n  Warning: nonlinear_phase fit has no displayed harmonics to fit; skipping.")
+        else:
+            k_trunc_nl = int(2 * max(NL_FIT_BETA1_BOUNDS[1],
+                                      NL_FIT_BETA2_BOUNDS[1] + NL_FIT_BETA2_NL_BOUNDS[1])) + 20
+            bounds = [NL_FIT_BETA1_BOUNDS, NL_FIT_BETA2_BOUNDS, NL_FIT_BETA2_NL_BOUNDS,
+                      tuple(np.deg2rad(NL_FIT_PHI0_BOUNDS_DEG)),
+                      tuple(np.deg2rad(NL_FIT_PHI_NL_BOUNDS_DEG))]
+            guess = [NL_FIT_GUESS_BETA1, NL_FIT_GUESS_BETA2, NL_FIT_GUESS_BETA2_NL,
+                     None if NL_FIT_GUESS_PHI0_DEG is None else np.deg2rad(NL_FIT_GUESS_PHI0_DEG),
+                     None if NL_FIT_GUESS_PHI_NL_DEG is None else np.deg2rad(NL_FIT_GUESS_PHI_NL_DEG)]
+            if NL_FIT_PER_SIDEBAND_SCALE:
+                bounds += [NL_FIT_SCALE_BOUNDS] * len(fit_harmonics)
+                guess += [None] * len(fit_harmonics)
+            x0 = [float(np.clip(g if g is not None else 0.5 * (lo + hi), lo, hi))
+                  for g, (lo, hi) in zip(guess, bounds)]
+            fallback_params = {
+                'beta1': x0[0], 'beta2': x0[1], 'beta2_nl': x0[2],
+                'phi0_rad': x0[3], 'phi_nl_rad': x0[4],
+                'scales': ({n: x0[5 + i] for i, n in enumerate(fit_harmonics)}
+                           if NL_FIT_PER_SIDEBAND_SCALE else {n: 1.0 for n in fit_harmonics}),
+                'k_trunc': k_trunc_nl,
+            }
+
+            try:
+                phi_rad_all = np.deg2rad(data.ch2_phases_deg)
+                dbc_all = data.normalized_peak_powers_dbm()   # (M, N) dBc
+                measured_dbc = {}
+                for n in fit_harmonics:
+                    j = int(np.where(data.harmonics == n)[0][0])
+                    measured_dbc[n] = dbc_all[:, j]
+
+                result = _differential_evolution(
+                    _nl_phase_cost, bounds, args=(phi_rad_all, fit_harmonics, measured_dbc, k_trunc_nl),
+                    seed=NL_FIT_SEED, tol=1e-12, polish=True,
+                    x0=(x0 if any(g is not None for g in guess) else None))
+                if not np.isfinite(result.fun):
+                    raise RuntimeError(
+                        "fit produced a non-finite cost (check for NaN/invalid values in the data)")
+                beta1_fit, beta2_fit, beta2_nl_fit, phi0_fit_rad, phi_nl_fit_rad = result.x[:5]
+                phi0_fit_deg = float(np.degrees(phi0_fit_rad) % 360.0)
+                phi_nl_fit_deg = float(np.degrees(phi_nl_fit_rad) % 360.0)
+                scales_fit = ({n: float(result.x[5 + i]) for i, n in enumerate(fit_harmonics)}
+                              if NL_FIT_PER_SIDEBAND_SCALE else {n: 1.0 for n in fit_harmonics})
+
+                print("\n  Nonlinear-phase joint fit "
+                      "(theta = beta1*sin(Wt) + beta2*sin(2Wt+phi+phi0) + beta2_nl*sin(2Wt+phi_NL)):")
+                print(f"    beta1     = {beta1_fit:.4f} rad")
+                print(f"    beta2     = {beta2_fit:.4f} rad")
+                print(f"    beta2_nl  = {beta2_nl_fit:.4f} rad")
+                print(f"    phi0      = {phi0_fit_deg:+7.2f} deg")
+                print(f"    phi_NL    = {phi_nl_fit_deg:+7.2f} deg")
+                if NL_FIT_PER_SIDEBAND_SCALE:
+                    for n in fit_harmonics:
+                        print(f"    scale[{n:+d}] = {scales_fit[n]:.4f}")
+                print(f"    Sum of squared dBc residuals: {result.fun:.4f}")
+
+                amps_fit = _nl_phase_amplitudes(beta1_fit, beta2_fit, beta2_nl_fit, phi0_fit_rad,
+                                                 phi_nl_fit_rad, phi_rad_all, fit_harmonics, k_trunc_nl)
+                print(f"    {'order':>5}   {'measured (mean)':>16}   {'RMS residual':>12}")
+                for n in fit_harmonics:
+                    pred_dbc = 10.0 * np.log10(np.maximum(scales_fit[n] * np.abs(amps_fit[n]) ** 2, 1e-30))
+                    resid = measured_dbc[n] - pred_dbc
+                    print(f"    p={n:+d}   {measured_dbc[n].mean():>14.3f} dB   "
+                          f"{np.sqrt(np.mean(resid ** 2)):>10.3f} dB")
+
+                nl_fit_result = {
+                    'beta1': float(beta1_fit), 'beta2': float(beta2_fit),
+                    'beta2_nl': float(beta2_nl_fit),
+                    'phi0_rad': float(phi0_fit_rad), 'phi_nl_rad': float(phi_nl_fit_rad),
+                    'scales': scales_fit,
+                    'k_trunc': k_trunc_nl,
+                }
+            except Exception as e:
+                print(f"\n  Warning: nonlinear_phase joint fit failed ({e}); "
+                      f"{'sliders will start from a guess/bounds-midpoint fallback' if NL_FIT_INTERACTIVE_SLIDERS else 'leaving raw data visible'}.")
+                nl_fit_result = None
+
+            if nl_fit_result is not None:
+                nl_draw_params = nl_fit_result
+            elif NL_FIT_INTERACTIVE_SLIDERS:
+                print(f"\n  Sliders starting from: beta1={fallback_params['beta1']:.4f} rad, "
+                      f"beta2={fallback_params['beta2']:.4f} rad, "
+                      f"beta2_nl={fallback_params['beta2_nl']:.4f} rad, "
+                      f"phi0={np.degrees(fallback_params['phi0_rad']) % 360.0:+7.2f} deg, "
+                      f"phi_NL={np.degrees(fallback_params['phi_nl_rad']) % 360.0:+7.2f} deg"
+                      + (f", scales={fallback_params['scales']}" if NL_FIT_PER_SIDEBAND_SCALE else ""))
+                nl_draw_params = fallback_params
 
     if SPLIT_FIGURES:
         for grp in SPLIT_GROUPS:
@@ -380,6 +696,10 @@ def main():
             fig_cal.savefig(_os.path.join(SAVE_FOLDER, 'dual_tone_sweep_calibration.svg'),
                             format='svg', bbox_inches='tight')
             print(f"Saved: {_os.path.join(SAVE_FOLDER, 'dual_tone_sweep_calibration.svg')}")
+
+    _nl_slider_controls = None
+    if NL_FIT_INTERACTIVE_SLIDERS and nl_draw_params is not None and nl_fit_lines:
+        _nl_slider_controls = _add_nl_fit_sliders(nl_fit_lines, nl_draw_params)
 
     plt.show()
 
