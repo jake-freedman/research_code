@@ -25,7 +25,7 @@ BNC_RESOURCE_STRING = 'USB0::0x03EB::0xAFFF::6B5-0B4F2000B-0989::INSTR'
 ESA_RESOURCE_STRING = 'TCPIP0::169.254.216.47::INSTR'
 CXA_RESOURCE_STRING = 'TCPIP0::169.254.222.67::hislip0::INSTR'
 
-DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
+DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\calibration_sweep"
 
 
 def voltage_linspace(p_start_dbm: float, p_stop_dbm: float, n: int) -> np.ndarray:
@@ -61,6 +61,7 @@ def bnc_power_heterodyne_sweep(
     esa_res_bw: float = 10e3,
     esa_ref_level: float = 0.0,
     settle_time_s: float = 0.1,
+    output_enable_settle_s: float = 0.0,
     optional_name: str = '',
     use_cxa: bool = False,
     per_step_calibration: bool = False,
@@ -102,7 +103,20 @@ def bnc_power_heterodyne_sweep(
     esa_ref_level : float
         ESA reference level in dBm. Default 0.
     settle_time_s : float
-        Wait time after setting each power level. Default 0.1 s.
+        Wait time after setting each power level, and after re-enabling the
+        RF output following per_step_calibration. Default 0.1 s.
+    output_enable_settle_s : float
+        Extra delay inserted right before the harmonics loop begins at each
+        step, on top of settle_time_s. harmonics is a fixed list, so whichever
+        order is first always gets measured with the least elapsed time since
+        the most recent disturbance (the power step, or the RF output being
+        toggled off/on for per_step_calibration) -- any switching/settling
+        transient from that disturbance disproportionately corrupts that one
+        order, while later orders benefit from the time taken by the
+        intervening sweeps. This parameter gives the transient extra time to
+        decay before the loop starts, independent of settle_time_s so it can
+        be tuned without slowing down every other wait. Default 0.0 (no
+        extra delay -- original behaviour).
     optional_name : str
         Label prepended to the saved filename.
     use_cxa : bool
@@ -193,6 +207,12 @@ def bnc_power_heterodyne_sweep(
                         sig.enable_output(1)
                         time.sleep(settle_time_s)
 
+                    # Extra settle right before the harmonics loop so the
+                    # order measured first (fixed by `harmonics`) doesn't
+                    # disproportionately catch the tail of the power-step /
+                    # output-toggle transient. See output_enable_settle_s.
+                    time.sleep(output_enable_settle_s)
+
                     harmonic_spectra = []
                     for n in harmonics:
                         center = abs(n * comb_spacing) if homodyne else abs(n * comb_spacing + heterodyne_shift)
@@ -260,24 +280,25 @@ def bnc_power_heterodyne_sweep(
 
 
 def main():
-    cw_powers = voltage_linspace(10, 20, 100)
+    cw_powers = voltage_linspace(-10, 25, 100)
     # 25 max for f1, 20 max for f2
 
     bnc_power_heterodyne_sweep(
-        cw_freq=2*1.130e9,
+        cw_freq=1*1.120e9,
         homodyne=False,
         cw_powers=cw_powers,
         heterodyne_shift=125e6,
-        harmonics=(0,1,2),
-        window_hz=2e6,
-        esa_freq_step=2e6/1001,
+        harmonics=(-3, -2, -1, 0, 1, 2, 3),
+        window_hz=1e3,
+        esa_freq_step=2e3/1001,
         esa_res_bw=10e3,
         esa_ref_level=-40,
-        settle_time_s=0.05,
-        optional_name='f1_third_power_sweep',
+        settle_time_s=0.01,
+        output_enable_settle_s=0.1,
+        optional_name='wg21_power',
         use_cxa=True,
         per_step_calibration=True,
-        n_repeats=1 
+        n_repeats=5
     )
 
 

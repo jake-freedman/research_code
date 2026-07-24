@@ -511,14 +511,14 @@ def bnc_dual_tone_sweep(
 
 def main():
 
-    DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5"
+    DATA_FOLDER = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\nonlinearity_characterization"
 
-    M = 360
+    M = 90
     f0 = 1.130e9
 
     # Example: sweep channel 2 phase 0–360°, all other params fixed
     drive_freqs    = np.ones(M) * f0
-    ch1_powers_dbm = np.ones(M) * (22.94) # max 25
+    ch1_powers_dbm = np.ones(M) * (20.17) # max 25
     # ch1_powers_dbm = np.linspace(0, 23.5, M)
     ch2_powers_dbm = np.ones(M) * 10.89 # max 20
     # ch2_powers_dbm = np.linspace(-10, 15, M)
@@ -533,7 +533,7 @@ def main():
         ch1_phases_deg=ch1_phases_deg,
         ch2_phases_deg=ch2_phases_deg,
         data_folder=DATA_FOLDER,
-        harmonics=(-2, -1, 0, 1, 2),
+        harmonics=(-3, -2, -1, 0, 1, 2, 3),
         heterodyne_shift=125e6,
         window_hz=1e3,
         esa_freq_step=1e3/1001,
@@ -544,7 +544,7 @@ def main():
         use_cxa=True,
         per_step_calibration=False,
         averages_per_point=1,
-        n_sweep_repeats=5,
+        n_sweep_repeats=3,
         sideband_sum_calibration=True,
         ch2_enabled=True,
         ch1_enabled=True,
