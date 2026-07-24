@@ -674,17 +674,17 @@ def main():
 
     bnc_dark_window_optimizer(
         cw_freq=1.130e9,
-        ch1_power_min_dbm=17,
-        ch1_power_max_dbm=22,
-        ch2_power_min_dbm=9,
+        ch1_power_min_dbm=19,
+        ch1_power_max_dbm=26,
+        ch2_power_min_dbm=0,
         ch2_power_max_dbm=19,
         ch1_power_guess_dbm=21,
-        ch2_power_guess_dbm=17,
+        ch2_power_guess_dbm=12,
         n_phases=36,
-        mode='flatness',   # or 'maximize' with maximize_order=<int>,
+        mode='maximize',   # or 'maximize' with maximize_order=<int>,
                             # or 'flatness' with flatness_orders=<list of int>
         dark_orders=(0, -1),
-        maximize_order=-1,
+        maximize_order=1,
         flatness_orders=[-3, -2, -1, 0, 1, 2, 3],
         deep_harmonics=(-3, -2, -1, 0, 1, 2, 3),
         n_deep_repeats=100,
