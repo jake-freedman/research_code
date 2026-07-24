@@ -1,19 +1,32 @@
 """
 optimized_search_viewer.py
 
-Views the output of a dark-window optimization run that, once it locks onto
-a (ch1 power, ch2 power, ch2 phase) setting, repeatedly re-measures the comb
-some number of times in a row (e.g. 100 repeats) to characterize shot-to-shot
-repeatability. This script ignores the search trajectory entirely (the
-opt_*/refine_* fields) and only reads out the repeated-readout block:
-harmonics, spectra (repeat, harmonic, ESA bin), cal_spectra (repeat, ESA bin),
-ch1_powers_dbm/ch2_powers_dbm/ch2_phases_deg (all constant across repeats).
+Views the output of a bnc_dark_window_optimizer.py run that, once it locks
+onto a (ch1 power, ch2 power, ch2 phase) setting, repeatedly re-measures the
+comb some number of times in a row (e.g. 100 repeats) to characterize
+shot-to-shot repeatability. This script ignores the search trajectory
+entirely (the opt_*/refine_* fields) and only reads out the repeated-readout
+block: harmonics, spectra (repeat, harmonic, ESA bin), cal_spectra (repeat,
+ESA bin), ch1_powers_dbm/ch2_powers_dbm/ch2_phases_deg (all constant across
+repeats).
+
+bnc_dark_window_optimizer.py has three mutually exclusive search modes
+(saved in the file's 'mode' field, along with the exact orders it optimized
+over in 'target_orders'):
+  'minimize' -- dark-window search: minimizes the worst CE across a group of
+                orders (dark_orders).
+  'maximize' -- maximizes a single combline's CE (maximize_order).
+  'flatness' -- minimizes the CE spread (max - min) across a group of orders
+                (flatness_orders), making them as equal as possible.
+When REPEAT_INDEX is left None, the auto-selected "best" repeat adapts to
+whichever mode produced the file: lowest worst-case CE for 'minimize',
+highest CE for 'maximize', lowest spread for 'flatness'. Older files saved
+before 'mode'/'target_orders' existed are treated as 'minimize' using their
+'dark_orders' field, matching this script's original behavior.
 
 Three views of that data:
   1. A single-repeat comb display (same bar/stem rendering as
-     comb_displayer.py) for one chosen repeat. If REPEAT_INDEX is left None,
-     the repeat with the deepest (lowest) dark-window metric -- max CE across
-     DARK_ORDERS -- is auto-selected.
+     comb_displayer.py) for one chosen repeat.
   2. Sideband power vs. repeat (iteration) index, for a user-chosen list of
      harmonic orders.
   3. Histograms of sideband power across all repeats, for a user-chosen list
@@ -39,20 +52,32 @@ from comb_displayer import (
 )
 
 # ── data source ────────────────────────────────────────────────────────────────
-DATA_PATH = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\very_good_suppression2.npz"
+# DATA_PATH = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\comb_finding\good_flatness_optimization.npz"
+DATA_PATH = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\calibration_sweep\wg24_powerpower_harmonic_sweep_2026-07-23-14-12-47.npz"
 
 # Which repeat (0-indexed) to show in the comb display (Capability 1). None ->
-# auto-pick the repeat with the deepest dark window, i.e. the lowest max CE
-# across DARK_ORDERS.
+# auto-pick the "best" repeat per the file's own search mode (see module
+# docstring): lowest worst-case CE ('minimize'), highest CE ('maximize'), or
+# lowest spread ('flatness').
 REPEAT_INDEX = None
 
-# Orders defining "best dark window" when REPEAT_INDEX is None. None -> use
-# the dark_orders array the search itself recorded in the file.
-DARK_ORDERS = None
+# Orders defining the auto-select metric when REPEAT_INDEX is None. None ->
+# use the target_orders array the search itself recorded in the file (the
+# right set for whichever mode produced it). Only set this to override that.
+TARGET_ORDERS = None
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── power calibration ─────────────────────────────────────────────────────────
+# Per-harmonic-order multiplicative correction applied to that order's linear
+# power at every data point -- the comb display, the iteration plot, the
+# histograms, and the auto-select metric (Capability 1's REPEAT_INDEX==None
+# best-repeat pick) all go through this. An order not listed here is assumed
+# uncorrected (factor 1).
+CALIBRATION_DICT = {-2: 1.12, -1: 1.33, 0: 1.08, 1: 1.168, 2: 1.136}   # e.g. {-2: 1.12, -1: 1.33, 0: 1.08, 1: 1.168, 2: 1.136}
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── capability 1: single-repeat comb display ──────────────────────────────────
-PRINT_ORDERS = list(range(-1, 2))   # harmonic orders to show/print for the comb
+PRINT_ORDERS = list(range(-3, 4))   # harmonic orders to show/print for the comb
 
 # Power display mode, shared by all three capabilities below:
 #   'percent' -> |A_p|^2 as % of total optical power
@@ -72,7 +97,7 @@ COMB_SHOW_XTICKS = False
 
 # dB mode only: floor/ceiling of the y-axis in dBc. None = auto (data
 # min/max +- 3 dB margin).
-FLOOR_dBc   = -65.0
+FLOOR_dBc   = -65 # -22.0
 CEILING_dBc =   2.0
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -95,7 +120,7 @@ comb_markersize      =  8.0
 # ── comb opacity gradient (both PLOT_STYLE = 'bar' and 'stem') ────────────────
 GRADIENT_ALPHA_MIN   = 0.15   # opacity at the baseline (bottom)
 GRADIENT_ALPHA_MAX   = 1.00   # opacity at the harmonic's value (top)
-GRADIENT_ORDER       = 1.0    # ramp shape, t**GRADIENT_ORDER; 1 = linear
+GRADIENT_ORDER       = 1.5    # ramp shape, t**GRADIENT_ORDER; 1 = linear
 GRADIENT_RESOLUTION  = 200    # vertical samples in the opacity gradient
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -155,8 +180,12 @@ FIT_LINESTYLE  = '-'
 FIT_LINEWIDTH  = 2.0
 FIT_LINE_COLOR = '#000000'
 FIT_LINE_ALPHA = 1.0
-# Horizontal dash width in data units at each order. None = match BAR_WIDTH.
+# Horizontal dash width in data units at each order. None = BAR_WIDTH *
+# FIT_LINE_WIDTH_FACTOR (wider than the bars by that factor); set directly to
+# override with an explicit absolute width instead (FIT_LINE_WIDTH_FACTOR is
+# then ignored).
 FIT_LINE_WIDTH = None
+FIT_LINE_WIDTH_FACTOR = 1.2
 FIT_ZORDER = 11
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -263,8 +292,14 @@ def _build_harmonic_colors(orders):
 def _load_repeats():
     """
     Returns (harmonics, spectra, cal_spectra, ch1_pwr, ch2_pwr, ch2_phase_deg,
-    file_dark_orders). spectra: (P, N, K); cal_spectra: (P, K); P = number of
-    repeats, N = number of recorded harmonics, K = ESA bins per sweep.
+    mode, file_target_orders). spectra: (P, N, K); cal_spectra: (P, K); P =
+    number of repeats, N = number of recorded harmonics, K = ESA bins per
+    sweep.
+
+    mode/file_target_orders come from bnc_dark_window_optimizer.py's 'mode'
+    and 'target_orders' fields (present for every mode: 'minimize',
+    'maximize', 'flatness'). Files saved before those fields existed are
+    treated as mode='minimize' using the older 'dark_orders' field.
     """
     resolved_path = local_path(DATA_PATH)
     meta, grid_data = load_grid(resolved_path)
@@ -278,25 +313,61 @@ def _load_repeats():
     ch2_phase   = float(d['ch2_phases_deg'][0])
 
     with np.load(resolved_path, allow_pickle=True) as raw:
-        file_dark_orders = raw['dark_orders'].astype(int).tolist() if 'dark_orders' in raw.files else None
+        if 'mode' in raw.files:
+            mode = str(raw['mode'])
+            file_target_orders = raw['target_orders'].astype(int).tolist()
+        elif 'dark_orders' in raw.files:
+            mode = 'minimize'
+            file_target_orders = raw['dark_orders'].astype(int).tolist()
+        else:
+            mode = 'minimize'
+            file_target_orders = None
 
-    return harmonics, spectra, cal_spectra, ch1_pwr, ch2_pwr, ch2_phase, file_dark_orders
+    return harmonics, spectra, cal_spectra, ch1_pwr, ch2_pwr, ch2_phase, mode, file_target_orders
 
 
-def _dark_metric_db(harmonics, spectra, cal_spectra, dark_orders):
-    """Per-repeat max CE [dBc] across dark_orders. Returns (P,) array."""
-    idxs = [int(np.where(harmonics == o)[0][0]) for o in dark_orders if o in harmonics]
-    if not idxs:
-        raise ValueError(f"None of dark_orders={dark_orders} are recorded (have {list(harmonics)}).")
+def _calibration_db(order):
+    """CALIBRATION_DICT's per-order linear-power factor (1.0 if not listed),
+    expressed as the equivalent dB offset -- for use directly on dBc/dB
+    values, which is exactly equivalent to multiplying the corresponding
+    linear power by that factor."""
+    return 10.0 * np.log10(CALIBRATION_DICT.get(order, 1.0))
+
+
+def _repeat_metric_db(mode, harmonics, spectra, cal_spectra, target_orders):
+    """
+    Per-repeat scalar metric [dBc or dB], matching bnc_dark_window_optimizer.py's
+    objective for `mode`: worst-case CE across target_orders ('minimize'),
+    the single target_orders[0]'s CE ('maximize'), or the CE spread
+    (max - min) across target_orders ('flatness'). Each order's CALIBRATION_DICT
+    factor is applied before the mode's aggregation. Returns (P,) array.
+    """
+    used_orders = [o for o in target_orders if o in harmonics]
+    if not used_orders:
+        raise ValueError(f"None of target_orders={target_orders} are recorded (have {list(harmonics)}).")
+    idxs = [int(np.where(harmonics == o)[0][0]) for o in used_orders]
     peak_dbm = spectra[:, idxs, :].max(axis=-1)        # (P, len(idxs))
     cal_dbm  = cal_spectra.max(axis=-1)[:, np.newaxis]  # (P, 1)
-    dbc = peak_dbm - cal_dbm
-    return dbc.max(axis=-1)   # (P,)
+    cal_offset_db = np.array([_calibration_db(o) for o in used_orders])
+    dbc = peak_dbm - cal_dbm + cal_offset_db[np.newaxis, :]   # (P, len(idxs))
+
+    if mode == 'maximize':
+        return dbc[:, 0]
+    if mode == 'flatness':
+        return dbc.max(axis=-1) - dbc.min(axis=-1)
+    return dbc.max(axis=-1)   # 'minimize'
+
+
+def _best_repeat_index(mode, metric):
+    """Index of the "best" repeat per mode: highest metric for 'maximize',
+    lowest for 'minimize'/'flatness'."""
+    return int(np.argmax(metric) if mode == 'maximize' else np.argmin(metric))
 
 
 def _powers_at_repeat(harmonics, spectra, cal_spectra, idx, orders):
     """{order: |A_p|^2 (linear fraction)} for a single repeat, skipping any
-    order not recorded (with a console warning)."""
+    order not recorded (with a console warning). Each order's
+    CALIBRATION_DICT factor is applied to its linear power."""
     cal_peak_dbm = float(cal_spectra[idx].max())
     powers_lin = {}
     for p in orders:
@@ -305,20 +376,21 @@ def _powers_at_repeat(harmonics, spectra, cal_spectra, idx, orders):
             print(f"  Warning: order {p} not recorded; skipping.")
             continue
         peak_dbm = float(spectra[idx, int(where[0])].max())
-        powers_lin[p] = 10.0 ** ((peak_dbm - cal_peak_dbm) / 10.0)
+        powers_lin[p] = 10.0 ** ((peak_dbm - cal_peak_dbm) / 10.0) * CALIBRATION_DICT.get(p, 1.0)
     return powers_lin
 
 
 def _power_series(harmonics, spectra, cal_spectra, order):
     """|A_p|^2 (linear fraction) across all repeats for one order, or None if
-    that order isn't recorded."""
+    that order isn't recorded. order's CALIBRATION_DICT factor is applied to
+    its linear power."""
     where = np.where(harmonics == order)[0]
     if len(where) == 0:
         return None
     h_idx = int(where[0])
     peak_dbm = spectra[:, h_idx, :].max(axis=-1)   # (P,)
     cal_dbm  = cal_spectra.max(axis=-1)            # (P,)
-    return 10.0 ** ((peak_dbm - cal_dbm) / 10.0)
+    return 10.0 ** ((peak_dbm - cal_dbm) / 10.0) * CALIBRATION_DICT.get(order, 1.0)
 
 
 def _resolve_repeat_range(P, start, stop):
@@ -413,7 +485,8 @@ def _build_comb_figure(plot_orders, y, y_baseline, y_ceiling, ylabel, title, sho
                                  GRADIENT_RESOLUTION, BALL_ZORDER)
 
     if y_fit is not None:
-        half_w = (FIT_LINE_WIDTH if FIT_LINE_WIDTH is not None else BAR_WIDTH) / 2.0
+        half_w = (FIT_LINE_WIDTH if FIT_LINE_WIDTH is not None
+                  else BAR_WIDTH * FIT_LINE_WIDTH_FACTOR) / 2.0
         for i, (xi, yt) in enumerate(zip(plot_orders, y_fit)):
             ax.plot([xi - half_w, xi + half_w], [yt, yt],
                     color=mcolors.to_rgba(FIT_LINE_COLOR, FIT_LINE_ALPHA),
@@ -801,25 +874,32 @@ def _run_histograms(harmonics, spectra, cal_spectra):
 
 def main():
     (harmonics, spectra, cal_spectra, ch1_pwr, ch2_pwr, ch2_phase,
-     file_dark_orders) = _load_repeats()
+     mode, file_target_orders) = _load_repeats()
     P = spectra.shape[0]
     print(f"Loaded: {DATA_PATH}")
     print(f"  Repeats    : {P}")
     print(f"  Harmonics  : {list(harmonics)}")
+    print(f"  Mode       : {mode}")
     print(f"  Settings   : ch1={ch1_pwr:+.2f} dBm, ch2={ch2_pwr:+.2f} dBm, "
           f"ch2 phase={ch2_phase:.2f} deg\n")
 
-    dark_orders = DARK_ORDERS if DARK_ORDERS is not None else file_dark_orders
+    target_orders = TARGET_ORDERS if TARGET_ORDERS is not None else file_target_orders
     if REPEAT_INDEX is None:
-        if dark_orders is None:
+        if target_orders is None:
             raise ValueError(
-                "REPEAT_INDEX is None and no DARK_ORDERS could be determined "
-                "(file has no dark_orders field); set DARK_ORDERS explicitly."
+                "REPEAT_INDEX is None and no TARGET_ORDERS could be determined "
+                "(file has no target_orders/dark_orders field); set TARGET_ORDERS explicitly."
             )
-        metric_db = _dark_metric_db(harmonics, spectra, cal_spectra, dark_orders)
-        repeat_idx = int(np.argmin(metric_db))
-        print(f"Auto-selected repeat {repeat_idx} (deepest dark window over orders "
-              f"{dark_orders}: {metric_db[repeat_idx]:.2f} dBc).\n")
+        metric_db = _repeat_metric_db(mode, harmonics, spectra, cal_spectra, target_orders)
+        repeat_idx = _best_repeat_index(mode, metric_db)
+        mode_desc = {
+            'minimize': f"deepest dark window over orders {target_orders}",
+            'maximize': f"highest CE at order {target_orders[0]}",
+            'flatness': f"flattest comb (lowest spread) over orders {target_orders}",
+        }[mode]
+        unit = 'dB spread' if mode == 'flatness' else 'dBc'
+        print(f"Auto-selected repeat {repeat_idx} ({mode_desc}: "
+              f"{metric_db[repeat_idx]:.2f} {unit}).\n")
     else:
         repeat_idx = REPEAT_INDEX
 

@@ -30,7 +30,7 @@ from graphics import (
 )
 
 # ── data ──────────────────────────────────────────────────────────────────────
-DATA_FILE = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\testheterodyne_sweep_2026-07-14-15-35-55.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d21_wg23b_p5\test_heterodyne_sweep_2026-07-09-10-38-22.npz"
 
 # ── extraction ────────────────────────────────────────────────────────────────
 HARMONIC_NUMERATOR   = 1
@@ -86,7 +86,7 @@ SHOW_GRID    = False
 
 # ── publication export ────────────────────────────────────────────────────────
 FOR_PUBLICATION = True
-SAVE_PATH = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq.svg"
+SAVE_PATH = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq.svg"
 
 # ── zoom plot ─────────────────────────────────────────────────────────────────
 # Overlays the main curve in ZOOM_XMIN–ZOOM_XMAX with a second series whose
@@ -99,7 +99,7 @@ ZOOM_YMIN           = 5
 ZOOM_YMAX           = 60
 ZOOM_AXES_WIDTH_MM  = 40
 ZOOM_AXES_HEIGHT_MM = 20
-ZOOM_SAVE_PATH      = r"C:\Users\acous\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq_inset.svg"
+ZOOM_SAVE_PATH      = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\media\beta_vs_freq_inset.svg"
 ZOOM_DBL_LINESTYLE  = '--'   # linestyle for the doubled-frequency overlay ('-', '--', ':', '-.')
 ZOOM_DBL_FILL       = False  # whether to draw the fill for the doubled-frequency overlay
 # ─────────────────────────────────────────────────────────────────────────────

@@ -23,5 +23,5 @@ Always allow for user control (see above) of:
 
 Always create a "for publication" option, which causes the plot to be saved as an svg with no title, no axes labels, and no tickmarklabels.
 	
-Ask any questions about requests that seem to be fundamentally vague.
+Ask any questions about requests that clear up what you need to do.
 
