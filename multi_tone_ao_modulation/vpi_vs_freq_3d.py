@@ -76,7 +76,7 @@ BETA_GUESS = 1.0
 # may genuinely have been taken at different drive powers; for the
 # single-file synthetic preview, a list instead previews what varying drive
 # power (rather than frequency shift) would do to the same measured curve.
-DRIVE_POWER_DBM = [5,5,10,5]
+DRIVE_POWER_DBM = [5,5,10]
 # 'dBm' or 'mW': plots P_pi (RF power for a pi shift); a resonance is a real
 # dip, so the value axis is flipped to display it as a peak (see
 # _flip_axis).
@@ -88,7 +88,7 @@ POWER_PI_UNIT   = 'dBm'
 # ── smoothing ─────────────────────────────────────────────────────────────────
 # None -> no smoothing; int -> moving average over that many points;
 # float -> uniform average over all points within +-SMOOTH/2 GHz.
-SMOOTH = 10
+SMOOTH = 20
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── axis limits ───────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ DEVICE_LABELS = None   # list of N_DEVICES strings; None = "Device 1", "Device 2
 # from the plot entirely -- it need not be a full permutation of 0..N-1.
 # None = keep everything, in load order. E.g. [2, 0] shows only the 3rd- and
 # 1st-loaded sweeps (in that order), dropping the rest.
-DEVICE_ORDER = [1, 4, 0, 3]
+DEVICE_ORDER = [1, 4, 0]
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── line style / coloring (same scheme as heterodyne_modulation_plot.py) ─────

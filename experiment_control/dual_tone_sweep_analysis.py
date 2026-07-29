@@ -11,8 +11,18 @@ from path_utils import local_path
 # User settings
 # ------------------------------------------------------------------
 
-DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-16-13-55-04.npz"
+DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\paper_data\phase_sweep_dual_tone_sweep_2026-07-28-17-54-14.npz"
 # DATA_FILE = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\w3_d2-3_wg5b_p5\phase_sweep_dual_tone_sweep_2026-07-17-11-09-05.npz"
+
+# If set to a filepath, skip the nonlinear_phase differential_evolution fit
+# entirely (PUB_CURVE_MODE = 'nonlinear_phase' only) and load these saved
+# parameters instead -- still drawn/slider-capable exactly as a fresh fit
+# would be. Use this to reuse a previously-computed fit without re-running
+# the (slow) global search, e.g. after fine-tuning via the interactive
+# sliders and wanting to lock those values in. None = fit normally; on a
+# successful fresh fit, the result is also auto-saved next to DATA_FILE (see
+# console output for the exact path) so it can be pointed to here later.
+PRESAVED_FIT_PATH = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\projects\dual_tone_aom\data\paper_data\phase_sweep_dual_tone_sweep_2026-07-28-17-54-14_nl_fit.json"
 # X-axis for all plots. One of:
 #   'drive_freq'   — fundamental drive frequency f
 #   'ch1_power'    — channel 1 output power (dBm)
@@ -73,28 +83,55 @@ BETA_GUESS_REF = 2.0
 # ── sideband filter ──────────────────────────────────────────────────────────
 # None = show all recorded harmonics; list = show only those orders.
 # (ignored when SPLIT_FIGURES = True)
-HARMONICS_TO_SHOW = [-2, -1, 0, 1, 2]   # e.g. [-1, 1] to show only ±1
+HARMONICS_TO_SHOW = [-3, -2, -1, 0, 1, 2, 3]   # e.g. [-1, 1] to show only ±1
 
 # ── figure size ───────────────────────────────────────────────────────────────
-axes_width_mm  = 100
-axes_height_mm = 55
+axes_width_mm  = 40
+axes_height_mm = 40
 
 # ── split figures ─────────────────────────────────────────────────────────────
 # When True, produce three separate power figures instead of one.
 # Each dict: harmonics to include, y-limits, axes size, and SVG filename.
+# Optional 'polar_diam_mm' key: this group's polar axes diameter (mm) when
+# SHOW_POLAR_CE_PLOT -- omit/None = auto: max(that group's w_mm, h_mm).
 SPLIT_FIGURES = True
 SPLIT_GROUPS = [
-    {'harmonics': [0],      'ymin': 0,   'ymax': 20,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_0.svg'},
-    {'harmonics': [-1, 1],  'ymin': -2,  'ymax': 55,  'w_mm': 85,  'h_mm': 45,  'marker_pt': 8,  'svg': 'dual_tone_sweep_powers_pm1.svg'},
-    {'harmonics': [-2, 2],  'ymin': 0,   'ymax': 20,  'w_mm': 85,  'h_mm': 20,  'marker_pt': 4,  'svg': 'dual_tone_sweep_powers_pm2.svg'},
+    {'harmonics': [0],      'ymin': 0,   'ymax': 15,  'w_mm': 50,  'h_mm': 15,  'marker_pt': 5,  'svg': 'dual_tone_sweep_powers_0.svg'},
+    {'harmonics': [-1, 1],  'ymin': -2,  'ymax': 58,  'w_mm': 50,  'h_mm': 40,  'marker_pt': 5,  'svg': 'dual_tone_sweep_powers_pm1.svg'},
+    {'harmonics': [-2, 2],  'ymin': 0,   'ymax': 15,  'w_mm': 50,  'h_mm': 15,  'marker_pt': 5,  'svg': 'dual_tone_sweep_powers_pm2.svg'},
+    {'harmonics': [-3, 3],  'ymin': 0,   'ymax': 8,  'w_mm': 50,  'h_mm': 15,  'marker_pt': 5,  'svg': 'dual_tone_sweep_powers_pm3.svg'},
 ]
+
+# ── polar plotting ─────────────────────────────────────────────────────────────
+# When True, every produced power plot (each SPLIT_GROUPS figure, or the
+# single combined figure when SPLIT_FIGURES=False) is drawn in polar form
+# instead of cartesian: angle = the swept phase (X_AXIS, must be 'ch1_phase'
+# or 'ch2_phase'), radius = the sideband power/CE value (per NORMALIZE).
+# Axes are forced square. Any active curve fit (PUB_CURVE_MODE) is drawn in
+# polar form too. Only the radial (constant-value) gridlines are shown -- the
+# angular (constant-phase) rays are suppressed. Falls back to cartesian with
+# a warning if X_AXIS isn't a phase axis.
+SHOW_POLAR_CE_PLOT = True
+
+# Polar axes diameter (mm) for the single combined figure (SPLIT_FIGURES =
+# False). None = auto: max(axes_width_mm, axes_height_mm). Each SPLIT_GROUPS
+# dict can set its own 'polar_diam_mm' key the same way (missing/None there
+# = auto: max(that group's w_mm, h_mm)) -- see SPLIT_GROUPS above.
+POLAR_DIAMETER_MM = 37
+
+# Number of radial gridline circles (constant-value rings) shown inside each
+# polar plot, evenly spaced strictly between its center and outer edge
+# (matplotlib silently drops a ring placed exactly at the center, so the
+# center/edge themselves are never counted as one of these rings).
+# None = matplotlib's automatic tick count.
+POLAR_N_RINGS = 3
 
 # ── calibration scaling ───────────────────────────────────────────────────────
 # Per-harmonic multiplicative correction applied to the conversion efficiency
 # after all normalization. Keys are harmonic orders (int); missing orders are
 # left unchanged. Set to None to disable.
 # Example: {1: 2.0, -1: 2.0} doubles the measured ±1 sideband power.
-CALIBRATION_DICT = None # {-2: 1.12, -1: 1.33, 0: 1.08, 1: 1.168, 2: 1.136}
+CALIBRATION_DICT = None # {-2: 1/0.8051, -1: 1/0.8421, 0: 1/0.979, 1: 1/0.9011, 2: 1/0.8627}
 
 # ── publication export ────────────────────────────────────────────────────────
 # When True: removes axis/tick labels, legend, and title; saves SVGs.
@@ -248,6 +285,7 @@ def main():
         print(f"  Preamble J0      : {float(data.ref_cal_spectrum.max()):.2f} dBm")
 
     import os as _os
+    import json as _json
     import matplotlib.colors as _mc
     from scipy.optimize import curve_fit as _curve_fit
     from scipy.optimize import differential_evolution as _differential_evolution
@@ -317,13 +355,17 @@ def main():
             for n in harmonics
         }
 
-    def _nl_phase_cost(params, phi_rad, harmonics, measured_dbc, k_trunc):
+    def _nl_phase_cost(params, phi_rad, harmonics, measured_dbc, k_trunc, free_scale_harmonics):
         beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad = params[:5]
-        scales = params[5:]   # one per harmonic, in `harmonics` order; empty if disabled
+        scales = params[5:]   # one per entry of free_scale_harmonics, in that order
+        scale_map = {n: scales[i] for i, n in enumerate(free_scale_harmonics)}
         amps = _nl_phase_amplitudes(beta1, beta2, beta2_nl, phi0_rad, phi_nl_rad, phi_rad, harmonics, k_trunc)
         err = 0.0
-        for idx, n in enumerate(harmonics):
-            scale = scales[idx] if len(scales) else 1.0
+        for n in harmonics:
+            # harmonics with a CALIBRATION_DICT entry are already corrected in
+            # the raw data (see the CALIBRATION_DICT pre-shift above), so
+            # their scale is fixed at 1.0 here rather than re-fit.
+            scale = scale_map.get(n, 1.0)
             pred_dbc = 10.0 * np.log10(np.maximum(scale * np.abs(amps[n]) ** 2, 1e-30))
             err += np.sum((measured_dbc[n] - pred_dbc) ** 2)
         return float(err)
@@ -402,9 +444,16 @@ def main():
         return fig_ctrl, sliders
 
     def _apply_pub_style(fig, ax, svg_name, marker_pt=PUB_MARKER_PT):
-        ax.set_xlabel('')
-        ax.set_ylabel('')
-        ax.tick_params(labelbottom=False, labelleft=False)
+        is_polar = ax.name == 'polar'
+        if is_polar:
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_ylabel('')
+            ax.set_title('')
+        else:
+            ax.set_xlabel('')
+            ax.set_ylabel('')
+            ax.tick_params(labelbottom=False, labelleft=False)
         legend = ax.get_legend()
         if legend is not None:
             legend.remove()
@@ -483,13 +532,17 @@ def main():
                         print(f"  Warning: not enough points to fit N={n_harm} harmonics "
                               f"for harmonic {order}; skipping.")
                         continue
+                    # _make_phase_harmonic_model's x_deg always expects degrees;
+                    # xd_all is already in radians here if the axes is polar.
+                    xd_all_deg = np.degrees(xd_all) if is_polar else xd_all
                     C0 = float(np.mean(yd_all))
                     A0 = (yd_all.max() - yd_all.min()) / max(4 * n_harm, 1)
                     p0 = [A0] * n_harm + [0.0, C0]
                     try:
-                        popt, _ = _curve_fit(model, xd_all, yd_all, p0=p0, maxfev=20000)
-                        x_fit = np.linspace(xd_all.min(), xd_all.max(), 500)
-                        ax.plot(x_fit, model(x_fit, *popt),
+                        popt, _ = _curve_fit(model, xd_all_deg, yd_all, p0=p0, maxfev=20000)
+                        x_fit_deg = np.linspace(xd_all_deg.min(), xd_all_deg.max(), 500)
+                        x_fit_plot = np.deg2rad(x_fit_deg) if is_polar else x_fit_deg
+                        ax.plot(x_fit_plot, model(x_fit_deg, *popt),
                                 color=cc_fn(fc), linewidth=PUB_CURVE_WIDTH, zorder=curve_z)
 
                         label = f"n={order}" if order is not None else "unknown harmonic"
@@ -521,15 +574,19 @@ def main():
                     for _, xd_all, yd_all, fc, order in _lines:
                         if order is None or order not in fit_harmonics:
                             continue
-                        x_fit = np.linspace(xd_all.min(), xd_all.max(), 500)
+                        # _nl_curve_y always expects x_deg in degrees; xd_all is
+                        # already in radians here if the axes is polar.
+                        xd_all_deg = np.degrees(xd_all) if is_polar else xd_all
+                        x_fit_deg = np.linspace(xd_all_deg.min(), xd_all_deg.max(), 500)
+                        x_fit_plot = np.deg2rad(x_fit_deg) if is_polar else x_fit_deg
                         y_fit = _nl_curve_y(nl_draw_params['beta1'], nl_draw_params['beta2'],
                                              nl_draw_params['beta2_nl'], nl_draw_params['phi0_rad'],
                                              nl_draw_params['phi_nl_rad'],
-                                             x_fit, order, nl_draw_params['k_trunc'],
+                                             x_fit_deg, order, nl_draw_params['k_trunc'],
                                              scale=nl_draw_params['scales'].get(order, 1.0))
-                        [line] = ax.plot(x_fit, y_fit, color=cc_fn(fc),
+                        [line] = ax.plot(x_fit_plot, y_fit, color=cc_fn(fc),
                                           linewidth=PUB_CURVE_WIDTH, zorder=curve_z)
-                        nl_fit_lines.append((line, order, x_fit, nl_draw_params['k_trunc']))
+                        nl_fit_lines.append((line, order, x_fit_deg, nl_draw_params['k_trunc']))
         fig.savefig(_os.path.join(SAVE_FOLDER, svg_name), format='svg', bbox_inches='tight')
         print(f"Saved: {_os.path.join(SAVE_FOLDER, svg_name)}")
 
@@ -562,78 +619,149 @@ def main():
         else:
             k_trunc_nl = int(2 * max(NL_FIT_BETA1_BOUNDS[1],
                                       NL_FIT_BETA2_BOUNDS[1] + NL_FIT_BETA2_NL_BOUNDS[1])) + 20
-            bounds = [NL_FIT_BETA1_BOUNDS, NL_FIT_BETA2_BOUNDS, NL_FIT_BETA2_NL_BOUNDS,
-                      tuple(np.deg2rad(NL_FIT_PHI0_BOUNDS_DEG)),
-                      tuple(np.deg2rad(NL_FIT_PHI_NL_BOUNDS_DEG))]
-            guess = [NL_FIT_GUESS_BETA1, NL_FIT_GUESS_BETA2, NL_FIT_GUESS_BETA2_NL,
-                     None if NL_FIT_GUESS_PHI0_DEG is None else np.deg2rad(NL_FIT_GUESS_PHI0_DEG),
-                     None if NL_FIT_GUESS_PHI_NL_DEG is None else np.deg2rad(NL_FIT_GUESS_PHI_NL_DEG)]
-            if NL_FIT_PER_SIDEBAND_SCALE:
-                bounds += [NL_FIT_SCALE_BOUNDS] * len(fit_harmonics)
-                guess += [None] * len(fit_harmonics)
-            x0 = [float(np.clip(g if g is not None else 0.5 * (lo + hi), lo, hi))
-                  for g, (lo, hi) in zip(guess, bounds)]
-            fallback_params = {
-                'beta1': x0[0], 'beta2': x0[1], 'beta2_nl': x0[2],
-                'phi0_rad': x0[3], 'phi_nl_rad': x0[4],
-                'scales': ({n: x0[5 + i] for i, n in enumerate(fit_harmonics)}
-                           if NL_FIT_PER_SIDEBAND_SCALE else {n: 1.0 for n in fit_harmonics}),
-                'k_trunc': k_trunc_nl,
-            }
 
-            try:
-                phi_rad_all = np.deg2rad(data.ch2_phases_deg)
-                dbc_all = data.normalized_peak_powers_dbm()   # (M, N) dBc
-                measured_dbc = {}
-                for n in fit_harmonics:
-                    j = int(np.where(data.harmonics == n)[0][0])
-                    measured_dbc[n] = dbc_all[:, j]
-
-                result = _differential_evolution(
-                    _nl_phase_cost, bounds, args=(phi_rad_all, fit_harmonics, measured_dbc, k_trunc_nl),
-                    seed=NL_FIT_SEED, tol=1e-12, polish=True,
-                    x0=(x0 if any(g is not None for g in guess) else None))
-                if not np.isfinite(result.fun):
-                    raise RuntimeError(
-                        "fit produced a non-finite cost (check for NaN/invalid values in the data)")
-                beta1_fit, beta2_fit, beta2_nl_fit, phi0_fit_rad, phi_nl_fit_rad = result.x[:5]
-                phi0_fit_deg = float(np.degrees(phi0_fit_rad) % 360.0)
-                phi_nl_fit_deg = float(np.degrees(phi_nl_fit_rad) % 360.0)
-                scales_fit = ({n: float(result.x[5 + i]) for i, n in enumerate(fit_harmonics)}
-                              if NL_FIT_PER_SIDEBAND_SCALE else {n: 1.0 for n in fit_harmonics})
-
-                print("\n  Nonlinear-phase joint fit "
-                      "(theta = beta1*sin(Wt) + beta2*sin(2Wt+phi+phi0) + beta2_nl*sin(2Wt+phi_NL)):")
-                print(f"    beta1     = {beta1_fit:.4f} rad")
-                print(f"    beta2     = {beta2_fit:.4f} rad")
-                print(f"    beta2_nl  = {beta2_nl_fit:.4f} rad")
-                print(f"    phi0      = {phi0_fit_deg:+7.2f} deg")
-                print(f"    phi_NL    = {phi_nl_fit_deg:+7.2f} deg")
-                if NL_FIT_PER_SIDEBAND_SCALE:
+            if PRESAVED_FIT_PATH:
+                try:
+                    with open(PRESAVED_FIT_PATH, 'r') as f:
+                        saved = _json.load(f)
+                    nl_fit_result = {
+                        'beta1': float(saved['beta1']), 'beta2': float(saved['beta2']),
+                        'beta2_nl': float(saved['beta2_nl']),
+                        'phi0_rad': float(saved['phi0_rad']), 'phi_nl_rad': float(saved['phi_nl_rad']),
+                        'scales': {int(k): float(v) for k, v in saved.get('scales', {}).items()},
+                        'k_trunc': int(saved.get('k_trunc', k_trunc_nl)),
+                    }
+                    print(f"\n  Loaded presaved nonlinear_phase fit from {PRESAVED_FIT_PATH}:")
+                    print(f"    beta1     = {nl_fit_result['beta1']:.4f} rad")
+                    print(f"    beta2     = {nl_fit_result['beta2']:.4f} rad")
+                    print(f"    beta2_nl  = {nl_fit_result['beta2_nl']:.4f} rad")
+                    print(f"    phi0      = {np.degrees(nl_fit_result['phi0_rad']) % 360.0:+7.2f} deg")
+                    print(f"    phi_NL    = {np.degrees(nl_fit_result['phi_nl_rad']) % 360.0:+7.2f} deg")
                     for n in fit_harmonics:
-                        print(f"    scale[{n:+d}] = {scales_fit[n]:.4f}")
-                print(f"    Sum of squared dBc residuals: {result.fun:.4f}")
+                        print(f"    scale[{n:+d}] = {nl_fit_result['scales'].get(n, 1.0):.4f}")
 
-                amps_fit = _nl_phase_amplitudes(beta1_fit, beta2_fit, beta2_nl_fit, phi0_fit_rad,
-                                                 phi_nl_fit_rad, phi_rad_all, fit_harmonics, k_trunc_nl)
-                print(f"    {'order':>5}   {'measured (mean)':>16}   {'RMS residual':>12}")
-                for n in fit_harmonics:
-                    pred_dbc = 10.0 * np.log10(np.maximum(scales_fit[n] * np.abs(amps_fit[n]) ** 2, 1e-30))
-                    resid = measured_dbc[n] - pred_dbc
-                    print(f"    p={n:+d}   {measured_dbc[n].mean():>14.3f} dB   "
-                          f"{np.sqrt(np.mean(resid ** 2)):>10.3f} dB")
+                    phi_rad_all = np.deg2rad(data.ch2_phases_deg)
+                    dbc_all = data.normalized_peak_powers_dbm()   # (M, N) dBc
+                    measured_dbc = {}
+                    for n in fit_harmonics:
+                        j = int(np.where(data.harmonics == n)[0][0])
+                        measured_dbc[n] = dbc_all[:, j]
+                    amps_fit = _nl_phase_amplitudes(
+                        nl_fit_result['beta1'], nl_fit_result['beta2'], nl_fit_result['beta2_nl'],
+                        nl_fit_result['phi0_rad'], nl_fit_result['phi_nl_rad'],
+                        phi_rad_all, fit_harmonics, nl_fit_result['k_trunc'])
+                    print(f"    {'order':>5}   {'measured (mean)':>16}   {'RMS residual':>12}")
+                    for n in fit_harmonics:
+                        scale = nl_fit_result['scales'].get(n, 1.0)
+                        pred_dbc = 10.0 * np.log10(np.maximum(scale * np.abs(amps_fit[n]) ** 2, 1e-30))
+                        resid = measured_dbc[n] - pred_dbc
+                        print(f"    p={n:+d}   {measured_dbc[n].mean():>14.3f} dB   "
+                              f"{np.sqrt(np.mean(resid ** 2)):>10.3f} dB")
+                except Exception as e:
+                    print(f"\n  Warning: failed to load PRESAVED_FIT_PATH ({e}); "
+                          f"running the fit normally instead.")
+                    nl_fit_result = None
 
-                nl_fit_result = {
-                    'beta1': float(beta1_fit), 'beta2': float(beta2_fit),
-                    'beta2_nl': float(beta2_nl_fit),
-                    'phi0_rad': float(phi0_fit_rad), 'phi_nl_rad': float(phi_nl_fit_rad),
-                    'scales': scales_fit,
+            if nl_fit_result is None:
+                # Harmonics with a CALIBRATION_DICT entry are already corrected
+                # in the raw data (see the CALIBRATION_DICT pre-shift above) --
+                # their per-sideband scale is fixed at 1.0 rather than
+                # free-fit, to avoid applying that correction twice.
+                free_scale_harmonics = ([n for n in fit_harmonics
+                                          if not (CALIBRATION_DICT and int(n) in CALIBRATION_DICT)]
+                                         if NL_FIT_PER_SIDEBAND_SCALE else [])
+                calibrated_harmonics = [n for n in fit_harmonics if n not in free_scale_harmonics]
+
+                bounds = [NL_FIT_BETA1_BOUNDS, NL_FIT_BETA2_BOUNDS, NL_FIT_BETA2_NL_BOUNDS,
+                          tuple(np.deg2rad(NL_FIT_PHI0_BOUNDS_DEG)),
+                          tuple(np.deg2rad(NL_FIT_PHI_NL_BOUNDS_DEG))]
+                guess = [NL_FIT_GUESS_BETA1, NL_FIT_GUESS_BETA2, NL_FIT_GUESS_BETA2_NL,
+                         None if NL_FIT_GUESS_PHI0_DEG is None else np.deg2rad(NL_FIT_GUESS_PHI0_DEG),
+                         None if NL_FIT_GUESS_PHI_NL_DEG is None else np.deg2rad(NL_FIT_GUESS_PHI_NL_DEG)]
+                if free_scale_harmonics:
+                    bounds += [NL_FIT_SCALE_BOUNDS] * len(free_scale_harmonics)
+                    guess += [None] * len(free_scale_harmonics)
+                x0 = [float(np.clip(g if g is not None else 0.5 * (lo + hi), lo, hi))
+                      for g, (lo, hi) in zip(guess, bounds)]
+                fallback_params = {
+                    'beta1': x0[0], 'beta2': x0[1], 'beta2_nl': x0[2],
+                    'phi0_rad': x0[3], 'phi_nl_rad': x0[4],
+                    'scales': {n: x0[5 + i] for i, n in enumerate(free_scale_harmonics)},
                     'k_trunc': k_trunc_nl,
                 }
-            except Exception as e:
-                print(f"\n  Warning: nonlinear_phase joint fit failed ({e}); "
-                      f"{'sliders will start from a guess/bounds-midpoint fallback' if NL_FIT_INTERACTIVE_SLIDERS else 'leaving raw data visible'}.")
-                nl_fit_result = None
+
+                try:
+                    phi_rad_all = np.deg2rad(data.ch2_phases_deg)
+                    dbc_all = data.normalized_peak_powers_dbm()   # (M, N) dBc
+                    measured_dbc = {}
+                    for n in fit_harmonics:
+                        j = int(np.where(data.harmonics == n)[0][0])
+                        measured_dbc[n] = dbc_all[:, j]
+
+                    result = _differential_evolution(
+                        _nl_phase_cost, bounds,
+                        args=(phi_rad_all, fit_harmonics, measured_dbc, k_trunc_nl, free_scale_harmonics),
+                        seed=NL_FIT_SEED, tol=1e-12, polish=True,
+                        x0=(x0 if any(g is not None for g in guess) else None))
+                    if not np.isfinite(result.fun):
+                        raise RuntimeError(
+                            "fit produced a non-finite cost (check for NaN/invalid values in the data)")
+                    beta1_fit, beta2_fit, beta2_nl_fit, phi0_fit_rad, phi_nl_fit_rad = result.x[:5]
+                    phi0_fit_deg = float(np.degrees(phi0_fit_rad) % 360.0)
+                    phi_nl_fit_deg = float(np.degrees(phi_nl_fit_rad) % 360.0)
+                    scales_fit = {n: float(result.x[5 + i]) for i, n in enumerate(free_scale_harmonics)}
+
+                    print("\n  Nonlinear-phase joint fit "
+                          "(theta = beta1*sin(Wt) + beta2*sin(2Wt+phi+phi0) + beta2_nl*sin(2Wt+phi_NL)):")
+                    print(f"    beta1     = {beta1_fit:.4f} rad")
+                    print(f"    beta2     = {beta2_fit:.4f} rad")
+                    print(f"    beta2_nl  = {beta2_nl_fit:.4f} rad")
+                    print(f"    phi0      = {phi0_fit_deg:+7.2f} deg")
+                    print(f"    phi_NL    = {phi_nl_fit_deg:+7.2f} deg")
+                    if NL_FIT_PER_SIDEBAND_SCALE:
+                        for n in fit_harmonics:
+                            tag = '  (fixed via CALIBRATION_DICT)' if n in calibrated_harmonics else ''
+                            print(f"    scale[{n:+d}] = {scales_fit.get(n, 1.0):.4f}{tag}")
+                    print(f"    Sum of squared dBc residuals: {result.fun:.4f}")
+
+                    amps_fit = _nl_phase_amplitudes(beta1_fit, beta2_fit, beta2_nl_fit, phi0_fit_rad,
+                                                     phi_nl_fit_rad, phi_rad_all, fit_harmonics, k_trunc_nl)
+                    print(f"    {'order':>5}   {'measured (mean)':>16}   {'RMS residual':>12}")
+                    for n in fit_harmonics:
+                        pred_dbc = 10.0 * np.log10(np.maximum(scales_fit.get(n, 1.0) * np.abs(amps_fit[n]) ** 2, 1e-30))
+                        resid = measured_dbc[n] - pred_dbc
+                        print(f"    p={n:+d}   {measured_dbc[n].mean():>14.3f} dB   "
+                              f"{np.sqrt(np.mean(resid ** 2)):>10.3f} dB")
+
+                    nl_fit_result = {
+                        'beta1': float(beta1_fit), 'beta2': float(beta2_fit),
+                        'beta2_nl': float(beta2_nl_fit),
+                        'phi0_rad': float(phi0_fit_rad), 'phi_nl_rad': float(phi_nl_fit_rad),
+                        'scales': scales_fit,
+                        'k_trunc': k_trunc_nl,
+                    }
+
+                    save_path = _os.path.join(
+                        _os.path.dirname(local_path(DATA_FILE)),
+                        _os.path.splitext(_os.path.basename(DATA_FILE))[0] + '_nl_fit.json')
+                    try:
+                        with open(save_path, 'w') as f:
+                            _json.dump({
+                                'beta1': nl_fit_result['beta1'], 'beta2': nl_fit_result['beta2'],
+                                'beta2_nl': nl_fit_result['beta2_nl'],
+                                'phi0_rad': nl_fit_result['phi0_rad'], 'phi_nl_rad': nl_fit_result['phi_nl_rad'],
+                                'scales': {str(k): v for k, v in nl_fit_result['scales'].items()},
+                                'k_trunc': nl_fit_result['k_trunc'],
+                                'fit_harmonics': fit_harmonics,
+                                'source_data_file': DATA_FILE,
+                            }, f, indent=2)
+                        print(f"\n  Saved nonlinear_phase fit parameters to {save_path}")
+                    except Exception as e:
+                        print(f"\n  Warning: could not save fit parameters ({e}).")
+                except Exception as e:
+                    print(f"\n  Warning: nonlinear_phase joint fit failed ({e}); "
+                          f"{'sliders will start from a guess/bounds-midpoint fallback' if NL_FIT_INTERACTIVE_SLIDERS else 'leaving raw data visible'}.")
+                    nl_fit_result = None
 
             if nl_fit_result is not None:
                 nl_draw_params = nl_fit_result
@@ -646,36 +774,86 @@ def main():
                       + (f", scales={fallback_params['scales']}" if NL_FIT_PER_SIDEBAND_SCALE else ""))
                 nl_draw_params = fallback_params
 
+    _polar_active = SHOW_POLAR_CE_PLOT
+    if _polar_active and X_AXIS not in ('ch1_phase', 'ch2_phase'):
+        print(f"\n  Warning: SHOW_POLAR_CE_PLOT assumes a phase X_AXIS "
+              f"(angle = swept phase); current X_AXIS={X_AXIS!r}. Falling back to cartesian.")
+        _polar_active = False
+
+    def _set_polar_rings(ax):
+        """POLAR_N_RINGS whole-number CE rings, evenly spaced by the
+        LARGEST whole-number increment for which the leftover center circle
+        (from the plot's center out to the innermost ring) is still at
+        least as large as that increment -- computed from this axes' own
+        range, since each SPLIT_GROUPS entry spans different CE values. The
+        outermost ring sits exactly one increment inside the outer edge,
+        and the rest step inward from there. If the range can't fit
+        POLAR_N_RINGS rings under that center-circle constraint even at the
+        minimum increment of 1, the ring count is reduced (with a warning)
+        rather than shrinking the increment below 1 or violating the
+        constraint. Ticks exactly at either axis limit are excluded, since
+        matplotlib silently drops a tick placed exactly at the center (r=0
+        degenerates to a point, not a ring)."""
+        y_lo, y_hi = ax.get_ylim()
+        span = y_hi - y_lo
+        if span <= 0:
+            return
+        n = POLAR_N_RINGS
+        step = int(np.floor(span / (n + 1)))
+        while n > 0 and step < 1:
+            n -= 1
+            step = int(np.floor(span / (n + 1))) if n > 0 else step
+        if n <= 0:
+            print(f"\n  Warning: range ({y_lo:g}, {y_hi:g}) is too small to fit "
+                  f"any whole-number CE ring while keeping the center circle "
+                  f"at least as large as the increment.")
+            return
+        if n < POLAR_N_RINGS:
+            print(f"\n  Warning: only {n} of {POLAR_N_RINGS} requested whole-number "
+                  f"CE rings fit in range ({y_lo:g}, {y_hi:g}) while keeping the "
+                  f"center circle at least as large as the increment (step={step}).")
+        outer = y_hi - step
+        rings = outer - step * np.arange(n)
+        ax.set_yticks(rings)
+
     if SPLIT_FIGURES:
         for grp in SPLIT_GROUPS:
+            diam_mm = grp.get('polar_diam_mm') or max(grp['w_mm'], grp['h_mm'])
             fig_g, ax_g = data.plot_peak_powers(
                 normalize=NORMALIZE,
                 x_axis=X_AXIS,
-                axes_width_mm=grp['w_mm'],
-                axes_height_mm=grp['h_mm'],
+                axes_width_mm=diam_mm if _polar_active else grp['w_mm'],
+                axes_height_mm=diam_mm if _polar_active else grp['h_mm'],
                 ymin=grp['ymin'],
                 ymax=grp['ymax'],
                 show_points=SHOW_REPEAT_POINTS,
                 show_error=SHOW_ERROR_BAND,
                 harmonics=grp['harmonics'],
                 show_line_markers=not FOR_PUBLICATION,
+                polar=_polar_active,
             )
+            if _polar_active and POLAR_N_RINGS is not None:
+                _set_polar_rings(ax_g)
             if FOR_PUBLICATION:
                 _apply_pub_style(fig_g, ax_g, grp['svg'],
                                  marker_pt=grp.get('marker_pt', PUB_MARKER_PT))
     else:
+        diam_mm = POLAR_DIAMETER_MM or max(axes_width_mm, axes_height_mm)
         fig_pow, ax_pow = data.plot_peak_powers(
             normalize=NORMALIZE,
             x_axis=X_AXIS,
-            axes_width_mm=axes_width_mm,
-            axes_height_mm=axes_height_mm,
+            axes_width_mm=diam_mm if _polar_active else axes_width_mm,
+            axes_height_mm=diam_mm if _polar_active else axes_height_mm,
             ymin=POWER_YMIN,
             ymax=POWER_YMAX,
             show_points=SHOW_REPEAT_POINTS,
             show_error=SHOW_ERROR_BAND,
             harmonics=HARMONICS_TO_SHOW,
             show_line_markers=not FOR_PUBLICATION,
+            polar=_polar_active,
         )
+        if _polar_active and POLAR_N_RINGS is not None:
+            _set_polar_rings(ax_pow)
         if FOR_PUBLICATION:
             _apply_pub_style(fig_pow, ax_pow, 'dual_tone_sweep_powers.svg')
 

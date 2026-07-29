@@ -95,8 +95,11 @@ def _style_axes(ax):
         axis='both', direction=tick_direction,
         width=tick_width, labelsize=tick_label_fontsize,
     )
-    for side in ['top', 'bottom', 'left', 'right']:
-        ax.spines[side].set_linewidth(spine_linewidth)
+    if ax.name == 'polar':
+        ax.spines['polar'].set_linewidth(spine_linewidth)
+    else:
+        for side in ['top', 'bottom', 'left', 'right']:
+            ax.spines[side].set_linewidth(spine_linewidth)
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +320,7 @@ class DualToneSweepData:
         show_points: bool = False,
         harmonics: list | None = None,
         show_line_markers: bool = True,
+        polar: bool = False,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot peak sideband power vs the swept parameter.
@@ -336,7 +340,18 @@ class DualToneSweepData:
             If True and n_sweep_repeats > 1, scatter individual per-repeat
             points behind the mean curve. Ignored when only one repeat is
             available.
+        polar : bool
+            If True, plot in polar form instead of cartesian: angle = the
+            swept phase (x_axis must be 'ch1_phase' or 'ch2_phase'), radius
+            = the sideband power/CE value. Axes are forced square (diameter
+            = max(axes_width_mm, axes_height_mm)). Only the radial
+            (constant-value) gridlines are shown; the angular
+            (constant-phase) rays are suppressed.
         """
+        if polar and x_axis not in ('ch1_phase', 'ch2_phase'):
+            raise ValueError(
+                f"polar=True requires x_axis to be a phase ('ch1_phase' or 'ch2_phase'); got {x_axis!r}"
+            )
         if normalize == 'percent':
             peaks  = 10.0 ** (self.normalized_peak_powers_dbm() / 10.0) * 100.0
             ylabel = 'Sideband power [% of carrier]'
@@ -347,6 +362,7 @@ class DualToneSweepData:
             peaks  = self.peak_powers_dbm()
             ylabel = 'Peak sideband power [dBm]'
         x, xlabel = self._x_values(x_axis)
+        x_plot = np.deg2rad(x) if polar else x
 
         # Per-repeat arrays for error shading / scatter — prefer spectra_all (whole
         # repeats), fall back to spectra_avgs (per-point averages) for scatter.
@@ -377,32 +393,38 @@ class DualToneSweepData:
 
         _show_set = set(harmonics) if harmonics is not None else None
         extra_iter = iter(_EXTRA_COLORS)
-        fig, ax = _make_figure(axes_width_mm, axes_height_mm)
+        if polar:
+            diameter_mm = max(axes_width_mm, axes_height_mm)
+            mm = 1.0 / 25.4
+            fig = plt.figure(figsize=(diameter_mm * mm, diameter_mm * mm))
+            ax = fig.add_subplot(111, projection='polar')
+        else:
+            fig, ax = _make_figure(axes_width_mm, axes_height_mm)
         for j, n in enumerate(self.harmonics):
             if _show_set is not None and int(n) not in _show_set:
                 continue
             color = _HARMONIC_COLORS.get(int(n), next(extra_iter, '#000000'))
             if show_points and peaks_all is not None:
-                x_rep = np.tile(x, (self.n_repeats, 1)).ravel()   # (R*M,)
+                x_rep = np.tile(x_plot, (self.n_repeats, 1)).ravel()   # (R*M,)
                 y_rep = peaks_all[:, :, j].ravel()                 # (R*M,)
                 ax.scatter(x_rep, y_rep, color=color, alpha=0.25,
                            s=8, linewidths=0, zorder=1)
             elif show_points and peaks_avgs is not None:
                 # A points per step: repeat each x[i] A times
-                x_rep = np.repeat(x, self.n_averages_per_point)   # (M*A,)
+                x_rep = np.repeat(x_plot, self.n_averages_per_point)   # (M*A,)
                 y_rep = peaks_avgs[:, j, :].ravel()               # (M*A,)
                 ax.scatter(x_rep, y_rep, color=color, alpha=0.25,
                            s=8, linewidths=0, zorder=1)
             _mk = {'marker': 'o', 'markersize': 3} if show_line_markers else {}
             ax.plot(
-                x, peaks[:, j],
+                x_plot, peaks[:, j],
                 color=color, linewidth=1.5,
                 label=f'Harmonic {n}', zorder=2,
                 **_mk,
             )
             if peaks_std is not None:
                 ax.fill_between(
-                    x,
+                    x_plot,
                     peaks[:, j] - peaks_std[:, j],
                     peaks[:, j] + peaks_std[:, j],
                     color=color, alpha=0.2, linewidth=0, zorder=1,
@@ -410,7 +432,11 @@ class DualToneSweepData:
 
         if ymin is not None or ymax is not None:
             ax.set_ylim([ymin, ymax])
-        ax.set_xlabel(xlabel, fontsize=axis_label_fontsize)
+        if polar:
+            ax.xaxis.grid(False)   # no rays of constant phase
+            ax.yaxis.grid(True)    # rings of constant value
+        else:
+            ax.set_xlabel(xlabel, fontsize=axis_label_fontsize)
         ax.set_ylabel(ylabel, fontsize=axis_label_fontsize)
         ax.legend(fontsize=tick_label_fontsize, frameon=False)
         _style_axes(ax)
