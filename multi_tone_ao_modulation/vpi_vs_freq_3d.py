@@ -76,7 +76,7 @@ BETA_GUESS = 1.0
 # may genuinely have been taken at different drive powers; for the
 # single-file synthetic preview, a list instead previews what varying drive
 # power (rather than frequency shift) would do to the same measured curve.
-DRIVE_POWER_DBM = [5,5,10]
+DRIVE_POWER_DBM = [5, 5, 10]
 # 'dBm' or 'mW': plots P_pi (RF power for a pi shift); a resonance is a real
 # dip, so the value axis is flipped to display it as a peak (see
 # _flip_axis).
@@ -86,9 +86,14 @@ POWER_PI_UNIT   = 'dBm'
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── smoothing ─────────────────────────────────────────────────────────────────
-# None -> no smoothing; int -> moving average over that many points;
-# float -> uniform average over all points within +-SMOOTH/2 GHz.
-SMOOTH = 20
+# None -> no smoothing; int -> moving average over that many points; float ->
+# uniform average over all points within +-SMOOTH/2 GHz. Either a single
+# value (used for every device), or a list -- one value per device, in the
+# same order as the *reordered* display curves (same convention as
+# DRIVE_POWER_DBM/DEVICE_LABELS: SMOOTH[0] is the smoothing for whichever
+# sweep DEVICE_ORDER[0] selects, etc; if DEVICE_ORDER is None, list order is
+# load order instead).
+SMOOTH = 15
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── axis limits ───────────────────────────────────────────────────────────────
@@ -106,7 +111,7 @@ DEVICE_LABELS = None   # list of N_DEVICES strings; None = "Device 1", "Device 2
 # from the plot entirely -- it need not be a full permutation of 0..N-1.
 # None = keep everything, in load order. E.g. [2, 0] shows only the 3rd- and
 # 1st-loaded sweeps (in that order), dropping the rest.
-DEVICE_ORDER = [1, 4, 0]
+DEVICE_ORDER = [1, 3, 0]
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── line style / coloring (same scheme as heterodyne_modulation_plot.py) ─────
@@ -181,8 +186,8 @@ ZORDER_BASE = 2
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── 3D view ───────────────────────────────────────────────────────────────────
-VIEW_ELEV, VIEW_AZIM, VIEW_ROLL = 29, -70, 0 # 32 -85 5
-BOX_ASPECT = (4, 3, 1.0)   # relative (x, y, z) box proportions
+VIEW_ELEV, VIEW_AZIM, VIEW_ROLL = 31, -95, -2 # 54, -90, 0 # 29, -70, 0 # 32 -85 5
+BOX_ASPECT = (4, 1.5, 1.0)   # relative (x, y, z) box proportions
 
 # True -> orthographic (no perspective foreshortening, parallel projection);
 # False -> matplotlib's default perspective projection.
@@ -194,7 +199,7 @@ SHOW_LEGEND = False
 # Text on the axes: off by default since with many devices they mostly just
 # clutter the plot. Independent of FOR_PUBLICATION, which always strips both
 # regardless of these (same convention as every other script here).
-SHOW_TICK_LABELS = False   # the numbers/device names on x/y/z ticks
+SHOW_TICK_LABELS = True   # the numbers/device names on x/y/z ticks
 SHOW_AXIS_LABELS = False   # "Drive frequency [GHz]", the z-axis label
 
 # Axes "walls" (panes): leave unfilled (just the edges) rather than the
@@ -472,21 +477,23 @@ def _draw_device_fill(ax, freqs, curve_y, device_index, z_lo_axis, z_hi_axis,
                                     alpha_device, zorder)
 
 
-def _generate_synthetic_devices(freqs_ghz, betas, drive_powers):
+def _generate_synthetic_devices(freqs_ghz, betas, drive_powers, smooths):
     """
     Copy the single measured curve N_DEVICES times, each with its own random
     frequency-axis shift drawn from +-FREQ_SHIFT_RANGE_MHZ/2 (converted to
-    GHz) and its own drive power (drive_powers[i], from _resolve_drive_powers
-    -- identical for every copy unless DRIVE_POWER_DBM is a list). Returns
-    (device_freqs, device_y, shifts_ghz): the first two are lists of
-    N_DEVICES 1D arrays (same convention as _load_device_data, so both code
-    paths in main() feed _build_figure identically).
+    GHz), its own drive power (drive_powers[i], from _resolve_drive_powers --
+    identical for every copy unless DRIVE_POWER_DBM is a list), and its own
+    smoothing amount (smooths[i], from _resolve_smooths -- likewise identical
+    unless SMOOTH is a list). Returns (device_freqs, device_y, shifts_ghz):
+    the first two are lists of N_DEVICES 1D arrays (same convention as
+    _load_device_data, so both code paths in main() feed _build_figure
+    identically).
     """
     rng = np.random.default_rng(RANDOM_SEED)
     half_range_ghz = (FREQ_SHIFT_RANGE_MHZ / 1e3) / 2.0
     shifts_ghz = rng.uniform(-half_range_ghz, half_range_ghz, size=N_DEVICES)
     device_freqs = [freqs_ghz + shift for shift in shifts_ghz]
-    device_y = [_smooth(freqs_ghz, _betas_to_y(betas, drive_powers[i]), SMOOTH)
+    device_y = [_smooth(freqs_ghz, _betas_to_y(betas, drive_powers[i]), smooths[i])
                 for i in range(N_DEVICES)]
     return device_freqs, device_y, shifts_ghz
 
@@ -556,6 +563,39 @@ def _resolve_drive_powers(n_raw):
     return [raw_to_power.get(i, DRIVE_POWER_DBM[0]) for i in range(n_raw)]
 
 
+def _resolve_smooths(n_raw):
+    """
+    Resolve SMOOTH into a list of n_raw values, one per raw-loaded device (in
+    raw load order) -- i.e. the order _load_device_data/
+    _generate_synthetic_devices are called in, *before* DEVICE_ORDER
+    reorders or drops anything. Exactly the same convention as
+    _resolve_drive_powers (see there for the full explanation): a single
+    SMOOTH value (int, float, or None) is repeated n_raw times; a list is
+    given in *displayed* order and inverted through DEVICE_ORDER here.
+    """
+    if not isinstance(SMOOTH, (list, tuple)):
+        return [SMOOTH] * n_raw
+
+    if DEVICE_ORDER is None:
+        if len(SMOOTH) != n_raw:
+            raise ValueError(
+                f"SMOOTH has {len(SMOOTH)} entries but "
+                f"{n_raw} device(s) were loaded (DEVICE_ORDER is None, so "
+                f"they must match 1:1 in load order)."
+            )
+        return list(SMOOTH)
+
+    order = list(DEVICE_ORDER)
+    if len(SMOOTH) != len(order):
+        raise ValueError(
+            f"SMOOTH has {len(SMOOTH)} entries but "
+            f"DEVICE_ORDER has {len(order)} -- they must match 1:1, both in "
+            f"the displayed curves' order."
+        )
+    raw_to_smooth = {raw_idx: SMOOTH[k] for k, raw_idx in enumerate(order)}
+    return [raw_to_smooth.get(i, SMOOTH[0]) for i in range(n_raw)]
+
+
 def _betas_from_file(path):
     """Load one heterodyne sweep file and return (freqs_ghz, betas) -- the
     raw modulation depth, before any drive-power conversion or smoothing."""
@@ -579,13 +619,14 @@ def _betas_to_y(betas, drive_power_dbm):
     raise ValueError(f"POWER_PI_UNIT must be 'dBm', 'mW', or 'V', got {POWER_PI_UNIT!r}.")
 
 
-def _load_device_data(path, drive_power_dbm):
+def _load_device_data(path, drive_power_dbm, smooth):
     """Load one heterodyne sweep file and return (freqs_ghz, y) in the
     current POWER_PI_UNIT, converted using drive_power_dbm and smoothed per
-    SMOOTH -- one real device's data."""
+    smooth (that device's own smoothing amount, from _resolve_smooths) --
+    one real device's data."""
     freqs_ghz, betas = _betas_from_file(path)
     y = _betas_to_y(betas, drive_power_dbm)
-    return freqs_ghz, _smooth(freqs_ghz, y, SMOOTH)
+    return freqs_ghz, _smooth(freqs_ghz, y, smooth)
 
 
 def _apply_device_order(device_freqs, device_y, default_labels):
@@ -1021,30 +1062,34 @@ def main():
     if is_multi_source:
         # Real per-device sweeps: one file per device, no synthetic shift.
         drive_powers = _resolve_drive_powers(len(paths))
+        smooths = _resolve_smooths(len(paths))
         device_freqs, device_y = [], []
-        for p, drive_power_dbm in zip(paths, drive_powers):
-            freqs_ghz, y = _load_device_data(p, drive_power_dbm)
+        for p, drive_power_dbm, smooth in zip(paths, drive_powers, smooths):
+            freqs_ghz, y = _load_device_data(p, drive_power_dbm, smooth)
             device_freqs.append(freqs_ghz)
             device_y.append(y)
             print(f"Loaded: {p}")
             print(f"  {len(freqs_ghz)} CW steps: {freqs_ghz[0]:.4f} - {freqs_ghz[-1]:.4f} GHz")
             print(f"  Drive power: {drive_power_dbm:.2f} dBm")
+            print(f"  Smoothing: {smooth!r}")
             print(f"  {qty_name} range: {y.min():.4f} - {y.max():.4f} {POWER_PI_UNIT}")
         default_labels = [Path(p).stem for p in paths]
     else:
         drive_powers = _resolve_drive_powers(N_DEVICES)
+        smooths = _resolve_smooths(N_DEVICES)
         freqs_ghz, betas = _betas_from_file(paths[0])
-        y = _smooth(freqs_ghz, _betas_to_y(betas, drive_powers[0]), SMOOTH)
+        y = _smooth(freqs_ghz, _betas_to_y(betas, drive_powers[0]), smooths[0])
         print(f"Loaded: {paths[0]}")
         print(f"  {len(freqs_ghz)} CW steps: {freqs_ghz[0]:.4f} - {freqs_ghz[-1]:.4f} GHz")
         print(f"  {qty_name} range: {y.min():.4f} - {y.max():.4f} {POWER_PI_UNIT}")
 
-        device_freqs, device_y, shifts_ghz = _generate_synthetic_devices(freqs_ghz, betas, drive_powers)
+        device_freqs, device_y, shifts_ghz = _generate_synthetic_devices(
+            freqs_ghz, betas, drive_powers, smooths)
         print(f"\nSynthetic devices: {N_DEVICES} "
               f"(frequency shift range +-{FREQ_SHIFT_RANGE_MHZ / 2:.1f} MHz)")
         for i, shift in enumerate(shifts_ghz):
             print(f"  Device {i + 1}: shift {shift * 1e3:+.2f} MHz, "
-                  f"drive power {drive_powers[i]:.2f} dBm")
+                  f"drive power {drive_powers[i]:.2f} dBm, smoothing {smooths[i]!r}")
         default_labels = None
 
     device_freqs, device_y, default_labels = _apply_device_order(

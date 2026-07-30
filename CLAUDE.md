@@ -27,3 +27,5 @@ Ask any questions about requests that clear up what you need to do.
 
 Do not save files (e.g. image files) to the same directory as the code. Save to a subfolder called media or else have the user input this directory.
 
+Don't do performance checks of the code besides syntax unless I specifically ask.
+

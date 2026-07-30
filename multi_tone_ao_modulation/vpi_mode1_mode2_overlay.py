@@ -32,7 +32,9 @@ combos. Devices within one combo (different p-number/wg) shade from that
 family's light anchor to its dark end. The curve STROKES are always black
 regardless of waveguide/device/wafer/die: solid for mode 2, dashed for
 mode 1 -- so combo (fill color) and mode (line dash pattern) are each
-encoded by a single, consistent visual channel.
+encoded by a single, consistent visual channel. Set SEPARATE_BY_WAVEGUIDE =
+False to instead group/color by wafer+die ALONE, so a wafer+die's 'a' and
+'b' devices share one row/color (still told apart by their own label).
 """
 
 import os
@@ -90,7 +92,7 @@ POWER_PI_UNIT = 'dBm'
 # ── smoothing ─────────────────────────────────────────────────────────────────
 # None -> no smoothing; int -> moving average over that many points;
 # float -> uniform average over all points within +-SMOOTH/2 GHz.
-SMOOTH = 5
+SMOOTH = 10
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── per-device y-limit overrides ────────────────────────────────────────────────
@@ -109,8 +111,21 @@ DEVICE_YLIM_OVERRIDE = {
 }
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── grouping ──────────────────────────────────────────────────────────────────
+# True  -> group/color by (wafer+die, waveguide), same as always: 'a' and 'b'
+#          devices at the same wafer+die get their OWN row/color each.
+# False -> group/color by wafer+die ONLY: 'a' and 'b' devices at the same
+#          wafer+die share one row and one color (still distinguishable from
+#          each other by their label/title, and mode1 vs mode2 is still solid
+#          vs dashed regardless). Devices with no wafer/die label (the
+#          "unlabeled" group) become a single shared row/color too, rather
+#          than one row for 'a' and one for 'b'.
+SEPARATE_BY_WAVEGUIDE = False
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ── device fill color scheme ──────────────────────────────────────────────────
-# Every distinct (wafer+die, waveguide) combo -- i.e. every row of the
+# Every distinct row-group (wafer+die+waveguide, or just wafer+die --
+# depending on SEPARATE_BY_WAVEGUIDE above) -- i.e. every row of the
 # combined grid figure -- is assigned its OWN color family from this list, in
 # row order (cycling back to FAMILIES[0] if there are more combos than
 # entries here). Each family is a (light, dark) hex pair; devices within one
@@ -127,6 +142,17 @@ COLOR_FAMILIES = [
     (ORANGE2, None),
     (PINK2, None),
     ('#F26767', None),
+    (TAN2, None),
+    (BEIGE2, None),
+]
+
+COLOR_FAMILIES = [
+    (GREEN2, GREEN2),
+    (LIGHTBLUE2, LIGHTBLUE2),
+    (VIOLET2, VIOLET2),
+    (ORANGE2, ORANGE2),
+    (PINK2, PINK2),
+    (RED2, RED2),
     (TAN2, None),
     (BEIGE2, None),
 ]
@@ -149,7 +175,7 @@ MARKER_EDGE_ALPHA  = 1.0
 
 SHOW_FILL           = True
 FILL_ALPHA          = 0.35    # where only one curve (mode1 or mode2) covers a point
-FILL_ALPHA_OVERLAP  = 0.6     # where both curves cover the same point
+FILL_ALPHA_OVERLAP  = 0.8     # where both curves cover the same point
 FILL_N_COLS         = 300     # horizontal resolution of the fill raster
 FILL_ZORDER_OFFSET  = -1      # relative to the curve zorder
 
@@ -162,8 +188,8 @@ YLIM = (14, 51)   # (ymin, ymax) or None = auto per device
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── figure size (mm) ──────────────────────────────────────────────────────────
-axes_width_mm  = 29.0
-axes_height_mm = 19.0
+axes_width_mm  = 21.5
+axes_height_mm = 14.5
 left_mm        = 20.0
 right_mm       = 8.0
 bottom_mm      = 16.0
@@ -187,6 +213,75 @@ SAVE_FOLDER = r"C:\Users\jake\OneDrive - UCB-O365\quantum_nanophoxonics\media"
 SAVE_GRID_PNG  = True     # also save the combined grid as a PNG into SAVE_FOLDER
 GRID_PNG_NAME  = 'vpi_mode1_mode2_overlay_grid.png'
 GRID_PNG_DPI   = 300
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── best-Ppi frequency-alignment scatter ────────────────────────────────────────
+# For every device, find the frequency (within its own mode1 sweep, and
+# separately its own mode2 sweep) at which Ppi is minimized -- i.e. its
+# resonance -- then plot one point per device, each colored exactly like
+# that device's own line plot. Since the rest of this script assumes a
+# device's mode2 resonance sits at twice its mode1 resonance, this is a QC
+# check for that assumption.
+SHOW_BEST_FREQ_SCATTER = True
+
+# True  -> x = 2*f1_best (mode1 frequency doubled, same convention as every
+#          other plot in this script), y = f2_best. Perfect alignment is the
+#          y = x line -- x and y are on the same numeric footing, so
+#          BEST_FREQ_SHOW_DIAGONAL/_BAND force a shared square axis range
+#          (see BEST_FREQ_AXES_WIDTH_MM/HEIGHT_MM below) so that line
+#          actually renders at 45 degrees.
+# False -> x = f1_best RAW (not doubled), y = f2_best. Perfect alignment is
+#          now the y = 2x line instead -- x and y are on genuinely different
+#          numeric scales (y ~ 2x), so the axes are NOT forced square; each
+#          keeps its own independent range (BEST_FREQ_XLIM/YLIM if set, else
+#          auto).
+BEST_FREQ_DOUBLE_MODE1 = False
+
+# When True: skip every per-device figure/SVG AND the combined grid entirely
+# -- only the scatter above (and its publication SVG, if FOR_PUBLICATION) is
+# built. Per-device data is still loaded as usual (the scatter needs it).
+SCATTER_ONLY = False
+
+BEST_FREQ_MARKER            = 'o'
+BEST_FREQ_MARKERSIZE        = 8.0
+BEST_FREQ_MARKER_FACE_ALPHA = 0.7
+BEST_FREQ_MARKER_EDGE_COLOR = '#000000'   # 'same' = match that point's own face color
+BEST_FREQ_MARKER_EDGE_ALPHA = 1.0
+BEST_FREQ_MARKER_EDGE_WIDTH = 1.00        # points
+
+BEST_FREQ_SHOW_DIAGONAL  = True    # reference y = x line (perfect mode1/mode2 alignment)
+BEST_FREQ_DIAGONAL_COLOR = '#000000'
+BEST_FREQ_DIAGONAL_ALPHA = 1.00
+BEST_FREQ_DIAGONAL_STYLE = '--'
+BEST_FREQ_DIAGONAL_WIDTH = 2.0
+BEST_FREQ_DIAGONAL_ZORDER = 1
+
+# Shaded tolerance band around the reference line itself (y=x, or y=2x when
+# BEST_FREQ_DOUBLE_MODE1=False): {(x,y) : |y - slope*x| <= half-width}, i.e.
+# +/- half-width MHz in y at every x.
+BEST_FREQ_SHOW_DIAGONAL_BAND        = True
+BEST_FREQ_DIAGONAL_BAND_HALFWIDTH_MHZ = 40.0
+BEST_FREQ_DIAGONAL_BAND_COLOR        = '#777777'
+BEST_FREQ_DIAGONAL_BAND_ALPHA        = 0.2
+BEST_FREQ_DIAGONAL_BAND_ZORDER       = 0   # below the diagonal line (1) and points (3)
+
+BEST_FREQ_ZORDER     = 3    # scatter points; diagonal is BEST_FREQ_DIAGONAL_ZORDER
+BEST_FREQ_SHOW_GRID   = False
+BEST_FREQ_SHOW_LEGEND = False   # off by default -- one entry per device gets cluttered fast
+
+BEST_FREQ_XLIM = (0.5*2.22, 0.5*2.37)   # (xmin, xmax) or None = auto (union of all points + diagonal)
+BEST_FREQ_YLIM = (2.22, 2.37)   # (ymin, ymax) or None = auto
+
+# Square by default (unlike the 100x40 default elsewhere) so a perfect
+# alignment diagonal actually renders at 45 degrees.
+BEST_FREQ_AXES_WIDTH_MM  = 40.0
+BEST_FREQ_AXES_HEIGHT_MM = 48.261
+BEST_FREQ_LEFT_MM   = 20.0
+BEST_FREQ_RIGHT_MM  = 8.0
+BEST_FREQ_BOTTOM_MM = 16.0
+BEST_FREQ_TOP_MM    = 8.0
+
+BEST_FREQ_SVG_NAME = 'best_ppi_freq_alignment.svg'   # saved into SAVE_FOLDER when FOR_PUBLICATION
 # ─────────────────────────────────────────────────────────────────────────────
 
 _LOG20 = 10.0 * np.log10(20.0)
@@ -242,6 +337,14 @@ def _load_mode_data(path):
     return freqs_ghz, _smooth(freqs_ghz, y, SMOOTH)
 
 
+def _best_ppi_freq(freqs_ghz, y):
+    """Frequency (from freqs_ghz) at which Ppi is minimized. y IS Ppi for
+    POWER_PI_UNIT 'dBm'/'mW' (lower = better -> argmin); y = 1/Vpi for 'V'
+    (higher = better -> argmax) -- same sense as _flip_axis()."""
+    idx = np.argmin(y) if _flip_axis() else np.argmax(y)
+    return float(freqs_ghz[idx])
+
+
 def _discover_devices(folder):
     """
     Scan folder for files matching FILENAME_RE. Returns
@@ -268,10 +371,13 @@ def _discover_devices(folder):
 
 def _row_key(key):
     """(wafer_die, waveguide) grouping key for one device key tuple --
-    every device sharing a row_key is drawn in the same color family."""
+    every device sharing a row_key is drawn in the same color family. When
+    SEPARATE_BY_WAVEGUIDE is False, waveguide is replaced with a constant
+    placeholder so 'a' and 'b' devices at the same wafer+die collapse into
+    one shared row_key (and therefore one shared row/color)."""
     wafer, die, wg, p_num, waveguide = key
     wafer_die = (wafer, die) if wafer is not None else None
-    return (wafer_die, waveguide)
+    return (wafer_die, waveguide if SEPARATE_BY_WAVEGUIDE else None)
 
 
 def _row_sort_key(row_key):
@@ -490,6 +596,86 @@ def _build_grid_figure(loaded, row_order):
     return fig
 
 
+def _build_best_freq_scatter(entries, show_labels):
+    """One point per device at (2*f1_best, f2_best) -- or (f1_best, f2_best)
+    if BEST_FREQ_DOUBLE_MODE1 is False -- each in that device's own color.
+    See SHOW_BEST_FREQ_SCATTER."""
+    fig_w = BEST_FREQ_LEFT_MM + BEST_FREQ_AXES_WIDTH_MM + BEST_FREQ_RIGHT_MM
+    fig_h = BEST_FREQ_BOTTOM_MM + BEST_FREQ_AXES_HEIGHT_MM + BEST_FREQ_TOP_MM
+    fig, ax = plt.subplots(figsize=(fig_w / 25.4, fig_h / 25.4))
+    fig.subplots_adjust(
+        left   = BEST_FREQ_LEFT_MM   / fig_w,
+        right  = 1 - BEST_FREQ_RIGHT_MM  / fig_w,
+        bottom = BEST_FREQ_BOTTOM_MM / fig_h,
+        top    = 1 - BEST_FREQ_TOP_MM    / fig_h,
+    )
+
+    for e in entries:
+        face = e['color']
+        edge = face if BEST_FREQ_MARKER_EDGE_COLOR == 'same' else BEST_FREQ_MARKER_EDGE_COLOR
+        ax.plot(e['x'], e['y'], marker=BEST_FREQ_MARKER, linestyle='none',
+                markersize=BEST_FREQ_MARKERSIZE,
+                markerfacecolor=mcolors.to_rgba(face, BEST_FREQ_MARKER_FACE_ALPHA),
+                markeredgecolor=mcolors.to_rgba(edge, BEST_FREQ_MARKER_EDGE_ALPHA),
+                markeredgewidth=BEST_FREQ_MARKER_EDGE_WIDTH,
+                zorder=BEST_FREQ_ZORDER, label=e['label'])
+
+    if BEST_FREQ_XLIM is not None:
+        ax.set_xlim(BEST_FREQ_XLIM)
+    if BEST_FREQ_YLIM is not None:
+        ax.set_ylim(BEST_FREQ_YLIM)
+
+    slope = 1.0 if BEST_FREQ_DOUBLE_MODE1 else 2.0
+
+    if BEST_FREQ_SHOW_DIAGONAL or BEST_FREQ_SHOW_DIAGONAL_BAND:
+        if BEST_FREQ_DOUBLE_MODE1:
+            # x (2*f1_best) and y (f2_best) are on the same numeric footing
+            # -- force a shared square range so a perfect-alignment y=x line
+            # actually renders at 45 degrees.
+            lo = min(ax.get_xlim()[0], ax.get_ylim()[0])
+            hi = max(ax.get_xlim()[1], ax.get_ylim()[1])
+            x_line = np.array([lo, hi])
+        else:
+            # x (raw f1_best) and y (f2_best) are on genuinely different
+            # numeric scales (y ~ 2x) -- keep each axis's own range.
+            x_line = np.array(ax.get_xlim())
+        y_line = slope * x_line
+
+        if BEST_FREQ_SHOW_DIAGONAL_BAND:
+            band_hw = BEST_FREQ_DIAGONAL_BAND_HALFWIDTH_MHZ / 1000.0   # MHz -> GHz
+            ax.fill_between(x_line, y_line - band_hw, y_line + band_hw,
+                             facecolor=mcolors.to_rgba(BEST_FREQ_DIAGONAL_BAND_COLOR, BEST_FREQ_DIAGONAL_BAND_ALPHA),
+                             edgecolor='none', zorder=BEST_FREQ_DIAGONAL_BAND_ZORDER)
+
+        if BEST_FREQ_SHOW_DIAGONAL:
+            ax.plot(x_line, y_line,
+                    color=mcolors.to_rgba(BEST_FREQ_DIAGONAL_COLOR, BEST_FREQ_DIAGONAL_ALPHA),
+                    linestyle=BEST_FREQ_DIAGONAL_STYLE, linewidth=BEST_FREQ_DIAGONAL_WIDTH,
+                    solid_capstyle='round', dash_capstyle='round', zorder=BEST_FREQ_DIAGONAL_ZORDER)
+
+        if BEST_FREQ_DOUBLE_MODE1:
+            ax.set_xlim(lo, hi)
+            ax.set_ylim(lo, hi)
+
+    ax.grid(BEST_FREQ_SHOW_GRID)
+    _style_ax(ax)
+
+    if show_labels:
+        xlabel = ('2 x mode1 best-Ppi frequency [GHz]' if BEST_FREQ_DOUBLE_MODE1
+                  else 'mode1 best-Ppi frequency [GHz]')
+        ax.set_xlabel(xlabel, fontsize=axis_label_fontsize)
+        ax.set_ylabel('mode2 best-Ppi frequency [GHz]', fontsize=axis_label_fontsize)
+        ax.set_title('Mode alignment check', fontsize=axis_label_fontsize)
+        if BEST_FREQ_SHOW_LEGEND:
+            ax.legend(fontsize=tick_label_fontsize, frameon=False)
+    else:
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.tick_params(labelbottom=False, labelleft=False)
+
+    return fig, ax
+
+
 def main():
     folder = local_path(DATA_FOLDER)
     devices = _discover_devices(folder)
@@ -501,7 +687,8 @@ def main():
     print(f"Found {len(devices)} device(s) in {folder}")
     row_order = _row_order(devices)
     n_families = len(COLOR_FAMILIES)
-    print(f"  {len(row_order)} distinct wafer+die+waveguide color group(s) "
+    grouping_desc = ("wafer+die+waveguide" if SEPARATE_BY_WAVEGUIDE else "wafer+die")
+    print(f"  {len(row_order)} distinct {grouping_desc} color group(s) "
           f"-> {min(len(row_order), n_families)} of {n_families} color families used"
           + (" (cycling back to the start)" if len(row_order) > n_families else ""))
 
@@ -509,7 +696,9 @@ def main():
     for key in devices:
         keys_by_row[_row_key(key)].append(key)
     for keys_in_row in keys_by_row.values():
-        keys_in_row.sort(key=lambda k: (k[2] or '0', k[3]))  # wg, p_num
+        # waveguide, wg, p_num -- waveguide first so a merged (wafer+die-only)
+        # row still shows all 'a' devices grouped before all 'b' devices.
+        keys_in_row.sort(key=lambda k: (k[4], k[2] or '0', k[3]))
 
     loaded = []
     all_labels = set()
@@ -532,14 +721,18 @@ def main():
             freqs1_ghz, y1 = _load_mode_data(modes[1])
             freqs2_ghz, y2 = _load_mode_data(modes[2])
             color = _device_color(row_index, idx, n_in_row)
+            f1_best = _best_ppi_freq(freqs1_ghz, y1)
+            f2_best = _best_ppi_freq(freqs2_ghz, y2)
 
             print(f"  {label}: mode1 {freqs1_ghz[0]:.4f}-{freqs1_ghz[-1]:.4f} GHz "
                   f"(x2 -> {2*freqs1_ghz[0]:.4f}-{2*freqs1_ghz[-1]:.4f} GHz), "
                   f"mode2 {freqs2_ghz[0]:.4f}-{freqs2_ghz[-1]:.4f} GHz")
+            print(f"    Best-Ppi: mode1 {f1_best:.4f} GHz (x2 -> {2*f1_best:.4f} GHz), "
+                  f"mode2 {f2_best:.4f} GHz")
             if label in DEVICE_YLIM_OVERRIDE:
                 print(f"    Using YLIM override: {DEVICE_YLIM_OVERRIDE[label]}")
 
-            if FOR_PUBLICATION:
+            if FOR_PUBLICATION and not SCATTER_ONLY:
                 fig_pub, _ax_pub = _build_device_figure(label, freqs1_ghz, y1,
                                                           freqs2_ghz, y2, color, show_labels=False)
                 svg_path = os.path.join(SAVE_FOLDER, f'{label}_mode_overlay.svg')
@@ -549,11 +742,12 @@ def main():
 
             loaded.append({
                 'row_key': rk,
-                'sort_key': (wg or '0', p_num),
+                'sort_key': (waveguide, wg or '0', p_num),
                 'label': label,
                 'freqs1_ghz': freqs1_ghz, 'y1': y1,
                 'freqs2_ghz': freqs2_ghz, 'y2': y2,
                 'color': color,
+                'f1_best_ghz': f1_best, 'f2_best_ghz': f2_best,
             })
 
     unmatched = set(DEVICE_YLIM_OVERRIDE) - all_labels
@@ -561,12 +755,27 @@ def main():
         print(f"  Warning: DEVICE_YLIM_OVERRIDE has label(s) with no matching discovered "
               f"device (check for typos): {sorted(unmatched)}")
 
-    if loaded:
+    if loaded and not SCATTER_ONLY:
         grid_fig = _build_grid_figure(loaded, row_order)
         if SAVE_GRID_PNG:
             png_path = os.path.join(SAVE_FOLDER, GRID_PNG_NAME)
             grid_fig.savefig(png_path, format='png', dpi=GRID_PNG_DPI, bbox_inches='tight')
             print(f"  Saved combined grid: {png_path}")
+
+    if loaded and SHOW_BEST_FREQ_SCATTER:
+        entries = [
+            {'x': (2.0 * d['f1_best_ghz'] if BEST_FREQ_DOUBLE_MODE1 else d['f1_best_ghz']),
+             'y': d['f2_best_ghz'],
+             'color': d['color'], 'label': d['label']}
+            for d in loaded
+        ]
+        _build_best_freq_scatter(entries, show_labels=True)
+        if FOR_PUBLICATION:
+            fig_bf_pub, _ax_bf_pub = _build_best_freq_scatter(entries, show_labels=False)
+            svg_path = os.path.join(SAVE_FOLDER, BEST_FREQ_SVG_NAME)
+            fig_bf_pub.savefig(svg_path, format='svg', bbox_inches='tight')
+            print(f"  Saved best-Ppi frequency alignment plot: {svg_path}")
+            plt.close(fig_bf_pub)
 
     plt.show()
 
